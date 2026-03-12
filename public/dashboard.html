@@ -1,0 +1,850 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard KPI People — Seazone</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e1e4ed;
+    --muted: #8b8fa3;
+    --accent: #6366f1;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #eab308;
+    --orange: #f97316;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --pink: #ec4899;
+    --cyan: #06b6d4;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); }
+  .header { padding: 24px 32px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center; }
+  .header h1 { font-size: 22px; font-weight: 600; }
+  .header .date { color: var(--muted); font-size: 14px; }
+  .tabs { display: flex; gap: 4px; padding: 16px 32px 0; border-bottom: 1px solid var(--border); }
+  .tab { padding: 10px 20px; cursor: pointer; border: none; background: none; color: var(--muted); font-size: 14px; font-weight: 500; border-bottom: 2px solid transparent; transition: all .2s; }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--accent); border-bottom-color: var(--accent); }
+  .content { padding: 24px 32px; display: none; }
+  .content.active { display: block; }
+  .grid { display: grid; gap: 16px; margin-bottom: 24px; }
+  .grid-4 { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+  .grid-3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+  .grid-2 { grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+  .card-title { font-size: 12px; text-transform: uppercase; letter-spacing: .5px; color: var(--muted); margin-bottom: 8px; }
+  .card-value { font-size: 32px; font-weight: 700; }
+  .card-sub { font-size: 13px; color: var(--muted); margin-top: 4px; }
+  .badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .badge-green { background: #22c55e22; color: var(--green); }
+  .badge-red { background: #ef444422; color: var(--red); }
+  .badge-yellow { background: #eab30822; color: var(--yellow); }
+  .badge-orange { background: #f9731622; color: var(--orange); }
+  .badge-blue { background: #3b82f622; color: var(--blue); }
+  .badge-purple { background: #a855f722; color: var(--purple); }
+  .badge-muted { background: #8b8fa322; color: var(--muted); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; padding: 10px 12px; color: var(--muted); font-weight: 500; font-size: 11px; text-transform: uppercase; letter-spacing: .5px; border-bottom: 1px solid var(--border); }
+  td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+  tr:hover td { background: #ffffff06; }
+  .chart-container { position: relative; height: 280px; }
+  .section-title { font-size: 16px; font-weight: 600; margin: 24px 0 12px; }
+  .priority-max { color: var(--red); }
+  .priority-med { color: var(--yellow); }
+  .priority-low { color: var(--green); }
+  .sla-over { color: var(--red); font-weight: 600; }
+  .sla-ok { color: var(--green); }
+  .na { color: var(--muted); font-style: italic; }
+  .filter-btn { padding: 5px 14px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--muted); font-size: 12px; cursor: pointer; transition: all .2s; }
+  .filter-btn:hover { color: var(--text); border-color: var(--accent); }
+  .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  #tbEntrevistas th.rotate { writing-mode: vertical-lr; transform: rotate(180deg); text-align: left; padding: 8px 4px; min-width: 32px; font-size: 10px; }
+  #tbEntrevistas td.val { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; }
+  #tbEntrevistas td.val-zero { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; color: var(--border); }
+  #tbEntrevistas td.row-label { font-weight: 600; padding: 6px 12px 6px 0; white-space: nowrap; position: sticky; left: 0; background: var(--card); z-index: 1; }
+  #tbEntrevistas td.row-total { font-weight: 700; text-align: center; padding: 6px 4px; min-width: 32px; color: var(--accent); }
+  #tbEntrevistas tr.total-row td { border-top: 2px solid var(--border); font-weight: 700; color: var(--accent); }
+  .cultura-table th.rotate { writing-mode: vertical-lr; transform: rotate(180deg); text-align: left; padding: 8px 4px; min-width: 32px; font-size: 10px; }
+  .cultura-table td.val { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; }
+  .cultura-table td.val-zero { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; color: var(--border); }
+  .cultura-table td.row-label { font-weight: 600; padding: 6px 12px 6px 0; white-space: nowrap; position: sticky; left: 0; background: var(--card); z-index: 1; }
+  .cultura-table td.row-total { font-weight: 700; text-align: center; padding: 6px 4px; min-width: 32px; color: var(--accent); }
+  .cultura-table tr.total-row td { border-top: 2px solid var(--border); font-weight: 700; color: var(--accent); }
+  .cultura-table tr.sep td { border-top: 2px solid var(--border); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Dashboard KPI People</h1>
+  <div class="date" id="headerDate">Dados atualizados em ...</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" onclick="showTab('menu')">Painel R&S</button>
+  <button class="tab" onclick="showTab('kpi')">KPI Diário</button>
+  <button class="tab" onclick="showTab('cultura')">Cultura</button>
+  <button class="tab" onclick="showTab('dp')">DP</button>
+  <button class="tab" onclick="showTab('headcount')">Headcount</button>
+</div>
+
+<!-- ===================== PAINEL R&S ===================== -->
+<div id="menu" class="content active">
+  <div class="grid grid-4" id="rsCards"></div>
+  <div class="grid grid-3" id="rsTablesCards"></div>
+  <div class="card" id="vagasDetalheCard">
+    <div class="card-title">Detalhe das Vagas Abertas</div>
+    <table>
+      <thead>
+        <tr><th>Recrutador</th><th>Prioridade</th><th>Vaga</th><th>SLA (dias)</th><th>Meta SLA</th><th>Status SLA</th><th>Empresa</th><th>Início</th><th>Posições</th></tr>
+      </thead>
+      <tbody id="tbVagasDetalhe"></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===================== KPI DIÁRIO ===================== -->
+<div id="kpi" class="content">
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title">Entrevistas Realizadas</div>
+      <div class="chart-container"><canvas id="chartEntrevistas"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Contratações por Mês e Recrutador</div>
+      <div class="chart-container"><canvas id="chartContratacoes"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin:0">Entrevistas Realizadas</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:12px;color:var(--muted);margin-right:4px">Visualização:</label>
+        <button class="filter-btn active" onclick="setEntView('dia',this)">Dia</button>
+        <button class="filter-btn" onclick="setEntView('mes',this)">Mês</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="tbEntrevistas"></table>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== CULTURA ===================== -->
+<div id="cultura" class="content">
+  <div class="grid grid-4">
+    <div class="card" id="cardDesMes3"></div>
+    <div class="card" id="cardDesMes2"></div>
+    <div class="card" id="cardDesMes1"></div>
+    <div class="card" id="cardBancoTalentos">
+      <div class="card-title">Banco de Talentos</div>
+      <div class="card-value">-</div>
+      <div class="card-sub">pessoas no pool</div>
+    </div>
+  </div>
+
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="card-title">Desligamentos</div>
+      <div class="chart-container"><canvas id="chartDesligamentos"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Vagas Canceladas por Mês</div>
+      <div class="chart-container"><canvas id="chartCanceladas"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin:0">Desligamentos</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:12px;color:var(--muted);margin-right:4px">Visualização:</label>
+        <button class="filter-btn cult-filter active" onclick="setCultView('dia',this)">Dia</button>
+        <button class="filter-btn cult-filter" onclick="setCultView('mes',this)">Mês</button>
+        <button class="filter-btn cult-filter" onclick="setCultView('ano',this)">Ano</button>
+        <button class="filter-btn cult-filter" onclick="setCultView('mesRolante',this)">Mês Rolante</button>
+        <button class="filter-btn cult-filter" onclick="setCultView('anoRolante',this)">Ano Rolante</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="tbCultura" class="cultura-table"></table>
+    </div>
+  </div>
+
+  <div class="grid grid-4" style="margin-top:16px">
+    <div class="card"><div class="card-title">Medalhas Validadas</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+    <div class="card"><div class="card-title">Nota Onb. 7 Dias (People)</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+    <div class="card"><div class="card-title">Nota Onb. 30 Dias (People)</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+    <div class="card"><div class="card-title">% Resposta Onboarding</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+  </div>
+</div>
+
+<!-- ===================== DP ===================== -->
+<div id="dp" class="content">
+  <div class="grid grid-4" id="dpSupCards"></div>
+
+  <div class="grid grid-4" style="margin-top:16px">
+    <div class="card" id="cardSupMes3"></div>
+    <div class="card" id="cardSupMes2"></div>
+    <div class="card" id="cardSupMes1"></div>
+    <div class="card"><div class="card-title">Pessoas sem NF</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:16px">
+    <div class="card">
+      <div class="card-title">Suportes por Mês</div>
+      <div class="chart-container"><canvas id="chartSuportesMes"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Top Assuntos</div>
+      <div class="chart-container"><canvas id="chartAssuntos"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin:0">Suportes People</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:12px;color:var(--muted);margin-right:4px">Visualização:</label>
+        <button class="filter-btn dp-filter active" onclick="setDpView('dia',this)">Dia</button>
+        <button class="filter-btn dp-filter" onclick="setDpView('mes',this)">Mês</button>
+        <button class="filter-btn dp-filter" onclick="setDpView('ano',this)">Ano</button>
+        <button class="filter-btn dp-filter" onclick="setDpView('mesRolante',this)">Mês Rolante</button>
+        <button class="filter-btn dp-filter" onclick="setDpView('anoRolante',this)">Ano Rolante</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="tbDP" class="cultura-table"></table>
+    </div>
+  </div>
+
+  <h2 class="section-title" style="margin-top:32px;border-top:1px solid var(--border);padding-top:24px">Admissões</h2>
+
+  <div class="grid grid-4" id="dpAdmCards"></div>
+
+  <div class="grid grid-4" style="margin-top:16px">
+    <div class="card" id="cardAdmMes3"></div>
+    <div class="card" id="cardAdmMes2"></div>
+    <div class="card" id="cardAdmMes1"></div>
+    <div class="card"><div class="card-title">Pessoas sem NF</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+  </div>
+
+  <div class="grid grid-2" style="margin-top:16px">
+    <div class="card">
+      <div class="card-title">Admissões por Mês</div>
+      <div class="chart-container"><canvas id="chartAdmissoesMes"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Admissões por Empresa</div>
+      <div class="chart-container"><canvas id="chartAdmEmpresa"></canvas></div>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:16px">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+      <div class="card-title" style="margin:0">Admissões</div>
+      <div style="display:flex;gap:6px;align-items:center">
+        <label style="font-size:12px;color:var(--muted);margin-right:4px">Visualização:</label>
+        <button class="filter-btn adm-filter active" onclick="setAdmView('dia',this)">Dia</button>
+        <button class="filter-btn adm-filter" onclick="setAdmView('mes',this)">Mês</button>
+        <button class="filter-btn adm-filter" onclick="setAdmView('ano',this)">Ano</button>
+        <button class="filter-btn adm-filter" onclick="setAdmView('mesRolante',this)">Mês Rolante</button>
+        <button class="filter-btn adm-filter" onclick="setAdmView('anoRolante',this)">Ano Rolante</button>
+      </div>
+    </div>
+    <div style="overflow-x:auto">
+      <table id="tbAdm" class="cultura-table"></table>
+    </div>
+  </div>
+
+  <div class="grid grid-4" style="margin-top:16px">
+    <div class="card"><div class="card-title">Alterações Contratuais</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+    <div class="card"><div class="card-title">Prejuízo Plano de Saúde</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+    <div class="card"><div class="card-title">Satisfação com o People</div><div class="card-value na">-</div><div class="card-sub">Fonte externa</div></div>
+    <div class="card"><div class="card-title">Modalidade Contrato</div><div class="card-value">519 PJ</div><div class="card-sub">47 estágio · 31 cooperado · 3 CLT</div></div>
+  </div>
+</div>
+
+<!-- ===================== HEADCOUNT ===================== -->
+<div id="headcount" class="content">
+  <div class="grid grid-4" id="hcCards"></div>
+
+  <div class="grid grid-2" style="margin-top:16px">
+    <div class="card">
+      <div class="card-title">Headcount por Departamento (Top 15)</div>
+      <div class="chart-container" style="height:350px"><canvas id="chartDepartamentos"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="card-title">Distribuição por Empresa</div>
+      <div class="chart-container"><canvas id="chartEmpresas"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script>
+const KPI_DATA = window.KPI_DATA;
+document.getElementById('headerDate').textContent = 'Dados atualizados em ' + KPI_DATA.ultima_atualizacao;
+
+// === TABS ===
+function showTab(id) {
+  document.querySelectorAll('.content').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// === CHART DEFAULTS ===
+Chart.defaults.color = '#8b8fa3';
+Chart.defaults.borderColor = '#2a2d3a';
+Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+// === ENTREVISTAS DATA ===
+const entrevistasRaw = KPI_DATA.entrevistasRaw;
+
+const allDates = [...new Set(entrevistasRaw.map(r => r[0]))].sort();
+const recs = ['Clara','Jonas','Júlia','Mario'];
+const colors = {Clara:'#22c55e',Jonas:'#3b82f6','Júlia':'#a855f7',Mario:'#f97316'};
+
+// Build lookup: date -> {rec: val}
+const entByDateRec = {};
+allDates.forEach(d => { entByDateRec[d] = {Clara:0,Jonas:0,'Júlia':0,Mario:0}; });
+entrevistasRaw.forEach(([d,r,v]) => { if(entByDateRec[d] && entByDateRec[d][r] !== undefined) entByDateRec[d][r] = v; });
+
+// Aggregate by month
+function getMonthKey(d) { return d.substring(0,7); }
+function getMonthLabel(k) { const [y,m] = k.split('-'); const names=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez']; return names[parseInt(m)-1]+'/'+y.slice(2); }
+
+const allMonths = [...new Set(allDates.map(getMonthKey))].sort();
+const entByMonthRec = {};
+allMonths.forEach(m => { entByMonthRec[m] = {Clara:0,Jonas:0,'Júlia':0,Mario:0}; });
+allDates.forEach(d => {
+  const m = getMonthKey(d);
+  recs.forEach(r => { entByMonthRec[m][r] += entByDateRec[d][r]; });
+});
+
+// Render table (names vertical, dates horizontal)
+function renderEntTable(mode) {
+  const table = document.getElementById('tbEntrevistas');
+  const cols = mode === 'dia' ? allDates : allMonths;
+  const data = mode === 'dia' ? entByDateRec : entByMonthRec;
+  const fmtCol = mode === 'dia'
+    ? d => { const p=d.split('-'); return p[2]+'/'+p[1]; }
+    : getMonthLabel;
+
+  let html = '<thead><tr><th></th>';
+  cols.forEach(c => { html += `<th class="rotate">${fmtCol(c)}</th>`; });
+  html += '<th class="rotate" style="color:var(--accent)">Total</th></tr></thead><tbody>';
+
+  recs.forEach(r => {
+    let rowTotal = 0;
+    html += `<tr><td class="row-label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colors[r]};margin-right:6px"></span>${r}</td>`;
+    cols.forEach(c => {
+      const v = data[c][r];
+      rowTotal += v;
+      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+    });
+    html += `<td class="row-total">${rowTotal}</td></tr>`;
+  });
+
+  // Total row
+  html += '<tr class="total-row"><td class="row-label">Total</td>';
+  let grandTotal = 0;
+  cols.forEach(c => {
+    const colTotal = recs.reduce((s,r) => s + data[c][r], 0);
+    grandTotal += colTotal;
+    html += `<td class="val">${colTotal}</td>`;
+  });
+  html += `<td class="row-total">${grandTotal}</td></tr>`;
+
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function setEntView(mode, btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderEntTable(mode);
+}
+
+renderEntTable('dia');
+
+// Chart
+new Chart(document.getElementById('chartEntrevistas'), {
+  type: 'bar',
+  data: {
+    labels: allDates.map(d => { const p=d.split('-'); return p[2]+'/'+p[1]; }),
+    datasets: recs.map(r => ({
+      label: r,
+      data: allDates.map(d => entByDateRec[d][r]),
+      backgroundColor: colors[r],
+      borderRadius: 3,
+    }))
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}} }
+});
+
+// === CONTRATAÇÕES ===
+const contMeses = KPI_DATA.contMeses;
+const contClara = KPI_DATA.contClara;
+const contJonas = KPI_DATA.contJonas;
+const contOutro = KPI_DATA.contOutro;
+
+new Chart(document.getElementById('chartContratacoes'), {
+  type: 'bar',
+  data: {
+    labels: contMeses,
+    datasets: [
+      { label:'Clara', data:contClara, backgroundColor:'#22c55e', borderRadius:3 },
+      { label:'Jonas', data:contJonas, backgroundColor:'#3b82f6', borderRadius:3 },
+      { label:'Outro', data:contOutro, backgroundColor:'#6b7280', borderRadius:3 },
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}} }
+});
+
+// === DESLIGAMENTOS (dados diários) ===
+const desRaw = KPI_DATA.desligamentosRaw;
+const desDates = desRaw.map(r => r[0]);
+const desData = {};
+desRaw.forEach(([d,t,f,v]) => { desData[d] = {total:t, forcados:f, voluntarios:v}; });
+
+const desKpis = ['Total','Forçados','Voluntários'];
+const desKpiColors = {Total:'var(--text)',Forçados:'var(--red)',Voluntários:'var(--orange)'};
+const desKpiKey = {Total:'total',Forçados:'forcados',Voluntários:'voluntarios'};
+
+// Helper: aggregate by key
+function aggDes(keyFn) {
+  const keys = [...new Set(desDates.map(keyFn))].sort();
+  const agg = {};
+  keys.forEach(k => { agg[k] = {total:0,forcados:0,voluntarios:0}; });
+  desDates.forEach(d => {
+    const k = keyFn(d);
+    agg[k].total += desData[d].total;
+    agg[k].forcados += desData[d].forcados;
+    agg[k].voluntarios += desData[d].voluntarios;
+  });
+  return {keys, agg};
+}
+
+function getYearKey(d) { return d.substring(0,4); }
+
+// Rolling month: last 30 days from each date
+function rollingMonth() {
+  const today = new Date(KPI_DATA.todayISO);
+  const cols = [];
+  for (let i = 11; i >= 0; i--) {
+    const end = new Date(today); end.setMonth(end.getMonth() - i);
+    const start = new Date(end); start.setDate(start.getDate() - 29);
+    const label = end.toISOString().slice(5,10).replace('-','/');
+    let tot=0, forc=0, vol=0;
+    desDates.forEach(d => {
+      const dt = new Date(d);
+      if (dt >= start && dt <= end) { tot += desData[d].total; forc += desData[d].forcados; vol += desData[d].voluntarios; }
+    });
+    cols.push({key: label, total: tot, forcados: forc, voluntarios: vol});
+  }
+  return cols;
+}
+
+// Rolling year: last 365 days from each quarter-end
+function rollingYear() {
+  const today = new Date(KPI_DATA.todayISO);
+  const cols = [];
+  for (let i = 3; i >= 0; i--) {
+    const end = new Date(today); end.setMonth(end.getMonth() - i*3);
+    const start = new Date(end); start.setFullYear(start.getFullYear() - 1); start.setDate(start.getDate() + 1);
+    const label = getMonthLabel(end.toISOString().slice(0,7));
+    let tot=0, forc=0, vol=0;
+    desDates.forEach(d => {
+      const dt = new Date(d);
+      if (dt >= start && dt <= end) { tot += desData[d].total; forc += desData[d].forcados; vol += desData[d].voluntarios; }
+    });
+    cols.push({key: label, total: tot, forcados: forc, voluntarios: vol});
+  }
+  return cols;
+}
+
+function renderCultTable(mode) {
+  const table = document.getElementById('tbCultura');
+  let cols, data;
+
+  if (mode === 'dia') {
+    cols = desDates;
+    data = desData;
+  } else if (mode === 'mes') {
+    const r = aggDes(getMonthKey);
+    cols = r.keys; data = r.agg;
+  } else if (mode === 'ano') {
+    const r = aggDes(getYearKey);
+    cols = r.keys; data = r.agg;
+  } else if (mode === 'mesRolante') {
+    const rolling = rollingMonth();
+    cols = rolling.map(r=>r.key);
+    data = {}; rolling.forEach(r => { data[r.key] = {total:r.total, forcados:r.forcados, voluntarios:r.voluntarios}; });
+  } else if (mode === 'anoRolante') {
+    const rolling = rollingYear();
+    cols = rolling.map(r=>r.key);
+    data = {}; rolling.forEach(r => { data[r.key] = {total:r.total, forcados:r.forcados, voluntarios:r.voluntarios}; });
+  }
+
+  const fmtCol = mode === 'dia' ? d => { const p=d.split('-'); return p[2]+'/'+p[1]; }
+    : mode === 'mes' ? getMonthLabel
+    : k => k;
+
+  let html = '<thead><tr><th></th>';
+  cols.forEach(c => { html += `<th class="rotate">${fmtCol(c)}</th>`; });
+  html += '<th class="rotate" style="color:var(--accent)">Total</th></tr></thead><tbody>';
+
+  desKpis.forEach(kpi => {
+    const key = desKpiKey[kpi];
+    let rowTotal = 0;
+    const clr = desKpiColors[kpi];
+    html += `<tr><td class="row-label" style="color:${clr}">${kpi}</td>`;
+    cols.forEach(c => {
+      const v = data[c] ? data[c][key] : 0;
+      rowTotal += v;
+      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+    });
+    html += `<td class="row-total">${rowTotal}</td></tr>`;
+  });
+
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function setCultView(mode, btn) {
+  document.querySelectorAll('.cult-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderCultTable(mode);
+}
+
+renderCultTable('dia');
+
+// Summary cards (last 3 months)
+const last3 = aggDes(getMonthKey);
+const mkeys = last3.keys.slice(-3);
+const cardIds = ['cardDesMes1','cardDesMes2','cardDesMes3'];
+mkeys.reverse().forEach((m,i) => {
+  const d = last3.agg[m];
+  const el = document.getElementById(cardIds[i]);
+  if(el) {
+    el.innerHTML = `<div class="card-title">Desligamentos ${getMonthLabel(m)}</div><div class="card-value">${d.total}</div><div class="card-sub">${d.forcados} forçados · ${d.voluntarios} voluntários</div>`;
+  }
+});
+
+// Chart (monthly for overview)
+const desChartData = aggDes(getMonthKey);
+new Chart(document.getElementById('chartDesligamentos'), {
+  type: 'bar',
+  data: {
+    labels: desChartData.keys.map(getMonthLabel),
+    datasets: [
+      { label:'Forçados', data:desChartData.keys.map(k=>desChartData.agg[k].forcados), backgroundColor:'#ef4444', borderRadius:3 },
+      { label:'Voluntários', data:desChartData.keys.map(k=>desChartData.agg[k].voluntarios), backgroundColor:'#f97316', borderRadius:3 },
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}} }
+});
+
+// === CANCELADAS ===
+const cancMeses = KPI_DATA.cancMeses;
+const cancVals = KPI_DATA.cancVals;
+
+new Chart(document.getElementById('chartCanceladas'), {
+  type: 'bar',
+  data: {
+    labels: cancMeses,
+    datasets: [{ label:'Vagas Canceladas', data:cancVals, backgroundColor:'#6366f1', borderRadius:4 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{y:{beginAtZero:true}} }
+});
+
+// === DEPARTAMENTOS ===
+const depts = KPI_DATA.depts;
+const deptVals = KPI_DATA.deptVals;
+
+new Chart(document.getElementById('chartDepartamentos'), {
+  type: 'bar',
+  data: {
+    labels: depts,
+    datasets: [{ data:deptVals, backgroundColor:'#6366f1', borderRadius:4 }]
+  },
+  options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
+});
+
+// === SUPORTES DP (Pipefy 304552142) ===
+const supNovosRaw = KPI_DATA.supNovosRaw;
+
+const supFinRaw = KPI_DATA.supFinRaw;
+
+// Build date-indexed objects
+const supNovos = {}; supNovosRaw.forEach(([d,v]) => { supNovos[d] = v; });
+const supFin = {}; supFinRaw.forEach(([d,v]) => { supFin[d] = v; });
+const supAllDates = [...new Set([...supNovosRaw.map(r=>r[0]), ...supFinRaw.map(r=>r[0])])].sort();
+
+// Build daily data: novos, finalizados, em_aberto (running)
+const supData = {};
+let running = 0;
+supAllDates.forEach(d => {
+  const n = supNovos[d] || 0;
+  const f = supFin[d] || 0;
+  running += n - f;
+  supData[d] = { novos: n, finalizados: f, aberto: Math.max(0, running) };
+});
+
+const supKpis = ['Novos Suportes','Finalizados','Em Aberto'];
+const supKpiColors = {'Novos Suportes':'var(--blue)','Finalizados':'var(--green)','Em Aberto':'var(--yellow)'};
+const supKpiKey = {'Novos Suportes':'novos','Finalizados':'finalizados','Em Aberto':'aberto'};
+
+function aggSup(keyFn) {
+  const keys = [...new Set(supAllDates.map(keyFn))].sort();
+  const agg = {};
+  keys.forEach(k => { agg[k] = {novos:0,finalizados:0,aberto:0}; });
+  supAllDates.forEach(d => {
+    const k = keyFn(d);
+    agg[k].novos += supData[d].novos;
+    agg[k].finalizados += supData[d].finalizados;
+  });
+  // em_aberto for aggregated = novos - finalizados cumulative
+  let cumOpen = 0;
+  keys.forEach(k => {
+    cumOpen += agg[k].novos - agg[k].finalizados;
+    agg[k].aberto = Math.max(0, cumOpen);
+  });
+  return {keys, agg};
+}
+
+function supRollingMonth() {
+  const today = new Date(KPI_DATA.todayISO);
+  const cols = [];
+  for (let i = 11; i >= 0; i--) {
+    const end = new Date(today); end.setMonth(end.getMonth() - i);
+    const start = new Date(end); start.setDate(start.getDate() - 29);
+    const label = end.toISOString().slice(5,10).replace('-','/');
+    let nov=0, fin=0;
+    supAllDates.forEach(d => {
+      const dt = new Date(d);
+      if (dt >= start && dt <= end) { nov += supData[d].novos; fin += supData[d].finalizados; }
+    });
+    cols.push({key: label, novos: nov, finalizados: fin, aberto: Math.max(0, nov - fin)});
+  }
+  return cols;
+}
+
+function supRollingYear() {
+  const today = new Date(KPI_DATA.todayISO);
+  const cols = [];
+  for (let i = 3; i >= 0; i--) {
+    const end = new Date(today); end.setMonth(end.getMonth() - i*3);
+    const start = new Date(end); start.setFullYear(start.getFullYear() - 1); start.setDate(start.getDate() + 1);
+    const label = getMonthLabel(end.toISOString().slice(0,7));
+    let nov=0, fin=0;
+    supAllDates.forEach(d => {
+      const dt = new Date(d);
+      if (dt >= start && dt <= end) { nov += supData[d].novos; fin += supData[d].finalizados; }
+    });
+    cols.push({key: label, novos: nov, finalizados: fin, aberto: Math.max(0, nov - fin)});
+  }
+  return cols;
+}
+
+function renderDpTable(mode) {
+  const table = document.getElementById('tbDP');
+  let cols, data;
+
+  if (mode === 'dia') {
+    cols = supAllDates;
+    data = supData;
+  } else if (mode === 'mes') {
+    const r = aggSup(getMonthKey);
+    cols = r.keys; data = r.agg;
+  } else if (mode === 'ano') {
+    const r = aggSup(getYearKey);
+    cols = r.keys; data = r.agg;
+  } else if (mode === 'mesRolante') {
+    const rolling = supRollingMonth();
+    cols = rolling.map(r=>r.key);
+    data = {}; rolling.forEach(r => { data[r.key] = {novos:r.novos, finalizados:r.finalizados, aberto:r.aberto}; });
+  } else if (mode === 'anoRolante') {
+    const rolling = supRollingYear();
+    cols = rolling.map(r=>r.key);
+    data = {}; rolling.forEach(r => { data[r.key] = {novos:r.novos, finalizados:r.finalizados, aberto:r.aberto}; });
+  }
+
+  const fmtCol = mode === 'dia' ? d => { const p=d.split('-'); return p[2]+'/'+p[1]; }
+    : mode === 'mes' ? getMonthLabel
+    : k => k;
+
+  let html = '<thead><tr><th></th>';
+  cols.forEach(c => { html += `<th class="rotate">${fmtCol(c)}</th>`; });
+  html += '<th class="rotate" style="color:var(--accent)">Total</th></tr></thead><tbody>';
+
+  supKpis.forEach(kpi => {
+    const key = supKpiKey[kpi];
+    let rowTotal = 0;
+    const clr = supKpiColors[kpi];
+    html += `<tr><td class="row-label" style="color:${clr}">${kpi}</td>`;
+    cols.forEach(c => {
+      const v = data[c] ? data[c][key] : 0;
+      rowTotal += v;
+      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+    });
+    if (key === 'aberto') {
+      // For em aberto, show last value instead of sum
+      const lastVal = data[cols[cols.length-1]] ? data[cols[cols.length-1]][key] : 0;
+      html += `<td class="row-total">${lastVal}</td></tr>`;
+    } else {
+      html += `<td class="row-total">${rowTotal}</td></tr>`;
+    }
+  });
+
+  html += '</tbody>';
+  table.innerHTML = html;
+}
+
+function setDpView(mode, btn) {
+  document.querySelectorAll('.dp-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderDpTable(mode);
+}
+
+renderDpTable('dia');
+
+// DP Summary cards (last 3 months)
+const supByMonth = aggSup(getMonthKey);
+const supMkeys = supByMonth.keys.slice(-3);
+const supCardIds = ['cardSupMes1','cardSupMes2','cardSupMes3'];
+supMkeys.reverse().forEach((m,i) => {
+  const d = supByMonth.agg[m];
+  const el = document.getElementById(supCardIds[i]);
+  if(el) {
+    el.innerHTML = `<div class="card-title">Suportes ${getMonthLabel(m)}</div><div class="card-value">${d.novos}</div><div class="card-sub">${d.finalizados} finalizados</div>`;
+  }
+});
+
+// Chart: Suportes por Mês (novos vs finalizados)
+new Chart(document.getElementById('chartSuportesMes'), {
+  type: 'bar',
+  data: {
+    labels: supByMonth.keys.map(getMonthLabel),
+    datasets: [
+      { label:'Novos', data:supByMonth.keys.map(k=>supByMonth.agg[k].novos), backgroundColor:'#3b82f6', borderRadius:3 },
+      { label:'Finalizados', data:supByMonth.keys.map(k=>supByMonth.agg[k].finalizados), backgroundColor:'#22c55e', borderRadius:3 },
+    ]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
+});
+
+// Chart: Top Assuntos
+const assuntoLabels = ['Outros','Férias','Recesso','Plano de Saúde','Day Off','Convenia','Descontos','Alteração Contratual','Organograma','Desligamento'];
+const assuntoVals = [307,131,106,101,83,54,40,39,29,22];
+new Chart(document.getElementById('chartAssuntos'), {
+  type: 'bar',
+  data: {
+    labels: assuntoLabels,
+    datasets: [{ data:assuntoVals, backgroundColor:'#6366f1', borderRadius:4 }]
+  },
+  options: { indexAxis:'y', responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}}, scales:{x:{beginAtZero:true}} }
+});
+
+// === EMPRESAS PIE ===
+const R = KPI_DATA.resumo;
+new Chart(document.getElementById('chartEmpresas'), {
+  type: 'doughnut',
+  data: {
+    labels: ['Seazone Serviços','Seazone Investimentos','SZN Gestão de Obras','Holding'],
+    datasets: [{ data:[R.hcSZS, R.hcSZI, R.hcGO, R.hcHolding], backgroundColor:['#3b82f6','#a855f7','#f97316','#6b7280'], borderWidth:0 }]
+  },
+  options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}} }
+});
+
+// ============================================================
+// CARDS DINAMICOS (populados a partir de KPI_DATA)
+// ============================================================
+
+// --- R&S Cards ---
+document.getElementById('rsCards').innerHTML = `
+  <div class="card"><div class="card-title">Posições Abertas</div><div class="card-value">${R.posAbertas}</div>
+    <div class="card-sub">Clara ${R.clara.posAbertas} · Jonas ${R.jonas.posAbertas} · Júlia ${R.julia.posAbertas} · Mario ${R.mario.posAbertas}</div></div>
+  <div class="card"><div class="card-title">SLA Médio</div><div class="card-value">${R.slaMedio.toFixed(1).replace('.',',')}<span style="font-size:16px;color:var(--muted)"> dias</span></div>
+    <div class="card-sub">Meta padrão: 20 dias</div></div>
+  <div class="card"><div class="card-title">Vagas Acima do SLA</div><div class="card-value sla-over">${R.posAcimaSla}</div>
+    <div class="card-sub">${KPI_DATA.vagasDetalhe.filter(v=>v.acima_sla).map(v=>v.vaga+' ('+v.sla_dias+'d)').join(' · ') || 'Nenhuma'}</div></div>
+  <div class="card"><div class="card-title">% Aceitos Entrev. Final</div><div class="card-value">${R.pctAceitosFinal.toFixed(1)}%</div>
+    <div class="card-sub">no período</div></div>
+`;
+
+// --- R&S Tables Cards ---
+document.getElementById('rsTablesCards').innerHTML = `
+  <div class="card"><div class="card-title">Vagas por Empresa</div><table>
+    <tr><td>Seazone Serviços</td><td><span class="badge badge-blue">${R.vagasSZS}</span></td></tr>
+    <tr><td>Gestão de Obras</td><td><span class="badge badge-purple">${R.vagasGO}</span></td></tr>
+    <tr><td>Seazone Investimentos</td><td><span class="badge ${R.vagasSZI?'badge-orange':'badge-muted'}">${R.vagasSZI}</span></td></tr>
+  </table></div>
+  <div class="card"><div class="card-title">Vagas por Recrutador</div><table>
+    <tr><td>Jonas</td><td><span class="badge badge-blue">${R.jonas.vagas}</span></td></tr>
+    <tr><td>Clara</td><td><span class="badge badge-green">${R.clara.vagas}</span></td></tr>
+    <tr><td>Júlia</td><td><span class="badge badge-purple">${R.julia.vagas}</span></td></tr>
+    <tr><td>Mario</td><td><span class="badge badge-orange">${R.mario.vagas}</span></td></tr>
+  </table></div>
+  <div class="card"><div class="card-title">Contratações 2026</div><table>
+    ${['Clara','Jonas','Outro'].map(r => {
+      const total = KPI_DATA.contMeses.reduce((s,m,i) => m.includes('/26') ? s + KPI_DATA['cont'+r][i] : s, 0);
+      const badge = r==='Clara'?'badge-green':r==='Jonas'?'badge-blue':'badge-muted';
+      return '<tr><td>'+r+'</td><td><span class="badge '+badge+'">'+total+'</span></td></tr>';
+    }).join('')}
+  </table></div>
+`;
+
+// --- Vagas Detalhe Table ---
+const prioColors = {Máxima:'badge-red',Média:'badge-yellow',Baixa:'badge-green'};
+document.getElementById('tbVagasDetalhe').innerHTML = KPI_DATA.vagasDetalhe.map(v => {
+  const slaClass = v.acima_sla ? 'class="sla-over"' : '';
+  const slaStatus = v.acima_sla ? '<span class="sla-over">ACIMA</span>' : '<span class="sla-ok">OK</span>';
+  const dtParts = v.data_criacao.split('-');
+  const dtFmt = dtParts.length===3 ? dtParts[2]+'/'+dtParts[1]+'/'+dtParts[0] : '';
+  return `<tr><td>${v.recrutador}</td><td><span class="badge ${prioColors[v.prioridade]||'badge-yellow'}">${v.prioridade}</span></td><td>${v.vaga}</td><td ${slaClass}>${v.sla_dias}</td><td>${v.sla_meta}</td><td>${slaStatus}</td><td>${v.empresa}</td><td>${dtFmt}</td><td>${v.posicoes_abertas}</td></tr>`;
+}).join('');
+
+// --- Banco de Talentos ---
+document.querySelector('#cardBancoTalentos .card-value').textContent = R.bancotalentos.toLocaleString('pt-BR');
+
+// --- DP Suportes Cards ---
+const supTotalNovos = supNovosRaw.reduce((s,r) => s+r[1], 0);
+const supTotalFin = supFinRaw.reduce((s,r) => s+r[1], 0);
+const todayStr = KPI_DATA.todayISO;
+const supHojeNovos = supNovosRaw.filter(r=>r[0]===todayStr).reduce((s,r)=>s+r[1],0);
+const supHojeFin = supFinRaw.filter(r=>r[0]===todayStr).reduce((s,r)=>s+r[1],0);
+document.getElementById('dpSupCards').innerHTML = `
+  <div class="card"><div class="card-title">Novos Suportes (Hoje)</div><div class="card-value">${supHojeNovos}</div><div class="card-sub">Pipefy #304552142</div></div>
+  <div class="card"><div class="card-title">Suportes em Aberto</div><div class="card-value" style="color:var(--yellow)">${supTotalNovos - supTotalFin}</div><div class="card-sub">aguardando resolução</div></div>
+  <div class="card"><div class="card-title">Finalizados (Hoje)</div><div class="card-value" style="color:var(--green)">${supHojeFin}</div><div class="card-sub">concluídos hoje</div></div>
+  <div class="card"><div class="card-title">Total Histórico</div><div class="card-value">${supTotalNovos}</div><div class="card-sub">desde jan/2025</div></div>
+`;
+
+// --- DP Admissoes Cards ---
+document.getElementById('dpAdmCards').innerHTML = `
+  <div class="card"><div class="card-title">Total Admissões</div><div class="card-value">${R.admTotal}</div><div class="card-sub">Pipefy #303470834</div></div>
+  <div class="card"><div class="card-title">Admissões em Aberto</div><div class="card-value" style="color:var(--yellow)">${R.admAberto}</div><div class="card-sub">em andamento</div></div>
+  <div class="card"><div class="card-title">Concluídas</div><div class="card-value" style="color:var(--green)">${R.admConcluidas}</div><div class="card-sub">admissões finalizadas</div></div>
+  <div class="card"><div class="card-title">Canceladas</div><div class="card-value" style="color:var(--red)">${R.admCanceladas}</div><div class="card-sub">admissões canceladas</div></div>
+`;
+
+// --- Headcount Cards ---
+document.getElementById('hcCards').innerHTML = `
+  <div class="card"><div class="card-title">Headcount Total</div><div class="card-value">${R.headcount}</div><div class="card-sub">${R.hcAtivos} ativos · ${R.hcFerias} em férias</div></div>
+  <div class="card"><div class="card-title">Seazone Serviços</div><div class="card-value">${R.hcSZS}</div></div>
+  <div class="card"><div class="card-title">Seazone Investimentos</div><div class="card-value">${R.hcSZI}</div></div>
+  <div class="card"><div class="card-title">SZN Gestão de Obras</div><div class="card-value">${R.hcGO}</div><div class="card-sub">+ ${R.hcHolding} Holding</div></div>
+`;
+</script>
+</body>
+</html>
