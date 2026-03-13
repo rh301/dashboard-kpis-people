@@ -64,6 +64,8 @@
   .filter-btn { padding: 5px 14px; border: 1px solid var(--border); border-radius: 6px; background: none; color: var(--muted); font-size: 12px; cursor: pointer; transition: all .2s; }
   .filter-btn:hover { color: var(--text); border-color: var(--accent); }
   .filter-btn.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .period-select { padding: 6px 12px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); color: var(--text); font-size: 13px; cursor: pointer; outline: none; }
+  .period-select:focus { border-color: var(--accent); }
   #tbEntrevistas th.rotate { writing-mode: vertical-lr; transform: rotate(180deg); text-align: left; padding: 8px 4px; min-width: 32px; font-size: 10px; }
   #tbEntrevistas td.val { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; }
   #tbEntrevistas td.val-zero { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; color: var(--border); }
@@ -84,15 +86,17 @@
 <div class="header">
   <h1>Dashboard KPI People</h1>
   <div style="display:flex;gap:12px;align-items:center">
-    <div style="display:flex;gap:4px;align-items:center">
-      <label style="font-size:12px;color:var(--muted);margin-right:4px">Período:</label>
-      <button class="filter-btn period-filter" onclick="setGlobalPeriod('dia',this)">Dia</button>
-      <button class="filter-btn period-filter" onclick="setGlobalPeriod('semana',this)">Semana</button>
-      <button class="filter-btn period-filter" onclick="setGlobalPeriod('mes',this)">Mês</button>
-      <button class="filter-btn period-filter" onclick="setGlobalPeriod('ano',this)">Ano</button>
-      <button class="filter-btn period-filter" onclick="setGlobalPeriod('semanaRolante',this)">Semana Rolante</button>
-      <button class="filter-btn period-filter active" onclick="setGlobalPeriod('mesRolante',this)">Mês Rolante</button>
-      <button class="filter-btn period-filter" onclick="setGlobalPeriod('anoRolante',this)">Ano Rolante</button>
+    <div style="display:flex;gap:8px;align-items:center">
+      <label style="font-size:12px;color:var(--muted)">Período:</label>
+      <select class="period-select" id="periodSelect" onchange="setGlobalPeriod(this.value)">
+        <option value="dia">Dia</option>
+        <option value="semana">Semana</option>
+        <option value="mes">Mês</option>
+        <option value="ano">Ano</option>
+        <option value="semanaRolante">Semana Rolante</option>
+        <option value="mesRolante" selected>Mês Rolante</option>
+        <option value="anoRolante">Ano Rolante</option>
+      </select>
     </div>
     <div class="date" id="headerDate">Dados atualizados em ...</div>
   </div>
@@ -1184,6 +1188,35 @@ function reRenderWithPeriod(period) {
       el.innerHTML = `<div class="card-title">Suportes ${getMonthLabel(m)}</div><div class="card-value">${d.novos}</div><div class="card-sub">${d.finalizados} finalizados</div>`;
     }
   });
+
+  // --- Update DP Suportes top cards with filtered period ---
+  const filtSupTotalNovos = filteredSupNovos.reduce((s,r) => s+r[1], 0);
+  const filtSupTotalFin = filteredSupFin.reduce((s,r) => s+r[1], 0);
+  document.getElementById('dpSupCards').innerHTML = `
+    <div class="card"><div class="card-title">Novos Suportes (Período)</div><div class="card-value">${filtSupTotalNovos}</div><div class="card-sub">no período selecionado</div></div>
+    <div class="card"><div class="card-title">Suportes em Aberto</div><div class="card-value" style="color:var(--yellow)">${filtSupTotalNovos - filtSupTotalFin}</div><div class="card-sub">aguardando resolução</div></div>
+    <div class="card"><div class="card-title">Finalizados (Período)</div><div class="card-value" style="color:var(--green)">${filtSupTotalFin}</div><div class="card-sub">no período selecionado</div></div>
+    <div class="card"><div class="card-title">Total Histórico</div><div class="card-value">${supNovosRaw.reduce((s,r) => s+r[1], 0)}</div><div class="card-sub">desde jan/2025</div></div>
+  `;
+
+  // --- Update Contratações card with filtered period ---
+  const filtContTotal = {};
+  ['Clara','Jonas','Outro'].forEach(r => { filtContTotal[r] = 0; });
+  contFilteredIdxs.forEach(i => {
+    filtContTotal.Clara += KPI_DATA.contClara[i];
+    filtContTotal.Jonas += KPI_DATA.contJonas[i];
+    filtContTotal.Outro += KPI_DATA.contOutro[i];
+  });
+  const contCard = document.querySelector('#rsTablesCards .card:last-child');
+  if (contCard) {
+    contCard.innerHTML = `<div class="card-title">Contratações (Período)</div><table>
+      ${['Clara','Jonas','Outro'].map(r => {
+        const badge = r==='Clara'?'badge-green':r==='Jonas'?'badge-blue':'badge-muted';
+        return '<tr><td>'+r+'</td><td><span class="badge '+badge+'">'+filtContTotal[r]+'</span></td></tr>';
+      }).join('')}
+    </table>`;
+  }
+
 }
 
 function aggDesFiltered(filteredRaw) {
@@ -1219,9 +1252,7 @@ function aggSupFiltered(filtNovos, filtFin) {
   return {keys, agg};
 }
 
-function setGlobalPeriod(period, btn) {
-  document.querySelectorAll('.period-filter').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
+function setGlobalPeriod(period) {
   currentPeriod = period;
   reRenderWithPeriod(period);
 }
