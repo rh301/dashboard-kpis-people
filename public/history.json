@@ -1,0 +1,12 @@
+[
+  {
+    "data_hora": "13/03/2026 18:49",
+    "status": "success",
+    "posicoes_abertas": 6,
+    "headcount": 358,
+    "sla_medio": 30.81,
+    "cfo_atualizado": false,
+    "erros": 0,
+    "erros_detalhe": []
+  }
+]
