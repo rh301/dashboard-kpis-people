@@ -300,7 +300,7 @@ SELECT
   COUNT(CASE WHEN p.hiredat IS NOT NULL THEN 1 END) AS posicoes_preenchidas,
   MIN(j.createdat) AS data_criacao,
   mgr.name AS gestor,
-  req.justificativa_requisitions AS observacao
+  MAX(req.justificativa_requisitions) AS observacao
 FROM "nekt_trusted"."inhire_job_details" j
 LEFT JOIN "nekt_trusted"."inhire_usersusers" u ON j.recruiterid = u.id
 LEFT JOIN "nekt_trusted"."inhire_positions" p ON p.jobid = j.id
@@ -309,7 +309,7 @@ LEFT JOIN "nekt_silver"."inhire_lista_requisitions" req ON p.requisitionid = req
 WHERE j.status = 'open'
   AND j.recruiterid IS NOT NULL AND j.recruiterid != ''
   AND LOWER(j.name) NOT LIKE '%vaga teste%' AND LOWER(j.name) NOT LIKE '%vaga modelo%'
-GROUP BY j.name, u.name, j.sla, j.sladaysgoal, j.tenantclient.name, mgr.name, req.justificativa_requisitions
+GROUP BY j.name, u.name, j.sla, j.sladaysgoal, j.tenantclient.name, mgr.name
 ORDER BY u.name, j.name
 """
 
