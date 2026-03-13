@@ -98,11 +98,11 @@ window.KPI_DATA = {
 
   // Detalhe vagas abertas
   vagasDetalhe: [
-    {"vaga":"Executivo de Vendas B2B","recrutador":"Clara","sla_dias":6,"sla_meta":20,"acima_sla":false,"empresa":"Seazone Serviços","prioridade":"Máxima","posicoes_abertas":1,"data_criacao":"2026-03-05"},
-    {"vaga":"Desenvolvedor de Software FullStack Pleno","recrutador":"Jonas","sla_dias":50,"sla_meta":20,"acima_sla":true,"empresa":"Seazone Serviços","prioridade":"Média","posicoes_abertas":1,"data_criacao":"2026-01-20"},
-    {"vaga":"Analista Financeiro - Obras","recrutador":"Jonas","sla_dias":14,"sla_meta":20,"acima_sla":false,"empresa":"Seazone Gestao de Obras","prioridade":"Média","posicoes_abertas":1,"data_criacao":"2026-02-25"},
-    {"vaga":"Analista de Processos","recrutador":"Júlia","sla_dias":34,"sla_meta":20,"acima_sla":true,"empresa":"Seazone Serviços","prioridade":"Média","posicoes_abertas":1,"data_criacao":"2026-02-05"},
-    {"vaga":"Programa de Trainee Seazone","recrutador":"Mario","sla_dias":72,"sla_meta":90,"acima_sla":false,"empresa":"Seazone Serviços","prioridade":"Baixa","posicoes_abertas":1,"data_criacao":"2025-12-29"}
+    {"vaga":"Executivo de Vendas B2B","recrutador":"Clara","sla_dias":6,"sla_meta":20,"acima_sla":false,"empresa":"Seazone Serviços","prioridade":"Máxima","posicoes_abertas":1,"data_criacao":"2026-03-05","gestor":"","id_cadeira":""},
+    {"vaga":"Desenvolvedor de Software FullStack Pleno","recrutador":"Jonas","sla_dias":50,"sla_meta":20,"acima_sla":true,"empresa":"Seazone Serviços","prioridade":"Média","posicoes_abertas":1,"data_criacao":"2026-01-20","gestor":"","id_cadeira":""},
+    {"vaga":"Analista Financeiro - Obras","recrutador":"Jonas","sla_dias":14,"sla_meta":20,"acima_sla":false,"empresa":"Seazone Gestao de Obras","prioridade":"Média","posicoes_abertas":1,"data_criacao":"2026-02-25","gestor":"","id_cadeira":""},
+    {"vaga":"Analista de Processos","recrutador":"Júlia","sla_dias":34,"sla_meta":20,"acima_sla":true,"empresa":"Seazone Serviços","prioridade":"Média","posicoes_abertas":1,"data_criacao":"2026-02-05","gestor":"","id_cadeira":""},
+    {"vaga":"Programa de Trainee Seazone","recrutador":"Mario","sla_dias":72,"sla_meta":90,"acima_sla":false,"empresa":"Seazone Serviços","prioridade":"Baixa","posicoes_abertas":1,"data_criacao":"2025-12-29","gestor":"","id_cadeira":""}
   ],
 
   // Resumo snapshot
@@ -132,7 +132,10 @@ window.KPI_DATA = {
     mario: { posAbertas: 1, acimaSla: 0, vagas: 1 },
   },
 
+  // Historico de execucoes
+  history: [],
+
   // Metadata
-  ultima_atualizacao: "12/03/2026 22:00",
+  ultima_atualizacao: "12/03/2026",
   todayISO: "2026-03-12",
 };

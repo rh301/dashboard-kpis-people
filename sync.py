@@ -13,6 +13,7 @@ import csv
 import io
 import json
 import os
+import re
 import sys
 from datetime import date, datetime
 
@@ -25,6 +26,7 @@ import requests
 NEKT_API_URL = "https://api.nekt.ai/api/v1/sql-query/"
 NEKT_API_KEY = os.environ.get("NEKT_API_KEY", "")
 DATA_JS_PATH = os.path.join(os.path.dirname(__file__), "public", "data.js")
+HISTORY_JSON_PATH = os.path.join(os.path.dirname(__file__), "public", "history.json")
 
 # Etapas de entrevista
 ETAPAS_ENTREVISTA = (
@@ -246,6 +248,7 @@ LEFT JOIN "nekt_trusted"."inhire_usersusers" u ON j.recruiterid = u.id
 LEFT JOIN "nekt_trusted"."inhire_positions" p ON p.jobid = j.id
 WHERE j.status = 'open'
   AND j.recruiterid IS NOT NULL AND j.recruiterid != ''
+  AND LOWER(j.name) NOT LIKE '%vaga teste%' AND LOWER(j.name) NOT LIKE '%vaga modelo%'
 GROUP BY u.name
 ORDER BY posicoes_abertas DESC
 """
@@ -259,6 +262,7 @@ FROM "nekt_trusted"."inhire_job_details" j
 LEFT JOIN "nekt_trusted"."inhire_usersusers" u ON j.recruiterid = u.id
 WHERE j.status = 'open'
   AND CAST(j.sla AS BIGINT) / 86400000 > CAST(j.sladaysgoal AS INTEGER)
+  AND LOWER(j.name) NOT LIKE '%vaga teste%' AND LOWER(j.name) NOT LIKE '%vaga modelo%'
 GROUP BY u.name
 ORDER BY vagas_acima_sla DESC
 """
@@ -269,6 +273,7 @@ SELECT ROUND(AVG(CAST(j.sla AS DOUBLE) / 86400000), 2) AS sla_medio_dias
 FROM "nekt_trusted"."inhire_job_details" j
 WHERE j.status = 'open'
   AND j.recruiterid IS NOT NULL AND j.recruiterid != ''
+  AND LOWER(j.name) NOT LIKE '%vaga teste%' AND LOWER(j.name) NOT LIKE '%vaga modelo%'
 """
 
 # --- R&S: Vagas por empresa ---
@@ -279,6 +284,7 @@ SELECT
 FROM "nekt_trusted"."inhire_job_details" j
 WHERE j.status = 'open'
   AND j.recruiterid IS NOT NULL AND j.recruiterid != ''
+  AND LOWER(j.name) NOT LIKE '%vaga teste%' AND LOWER(j.name) NOT LIKE '%vaga modelo%'
 GROUP BY j.tenantclient.name
 """
 
@@ -292,13 +298,18 @@ SELECT
   j.tenantclient.name AS empresa,
   COUNT(CASE WHEN p.hiredat IS NULL THEN 1 END) AS posicoes_abertas,
   COUNT(CASE WHEN p.hiredat IS NOT NULL THEN 1 END) AS posicoes_preenchidas,
-  MIN(j.createdat) AS data_criacao
+  MIN(j.createdat) AS data_criacao,
+  mgr.name AS gestor,
+  req.justificativa_requisitions AS observacao
 FROM "nekt_trusted"."inhire_job_details" j
 LEFT JOIN "nekt_trusted"."inhire_usersusers" u ON j.recruiterid = u.id
 LEFT JOIN "nekt_trusted"."inhire_positions" p ON p.jobid = j.id
+LEFT JOIN "nekt_trusted"."inhire_usersusers" mgr ON j.managerid = mgr.id
+LEFT JOIN "nekt_silver"."inhire_lista_requisitions" req ON p.requisitionid = req.id
 WHERE j.status = 'open'
   AND j.recruiterid IS NOT NULL AND j.recruiterid != ''
-GROUP BY j.name, u.name, j.sla, j.sladaysgoal, j.tenantclient.name
+  AND LOWER(j.name) NOT LIKE '%vaga teste%' AND LOWER(j.name) NOT LIKE '%vaga modelo%'
+GROUP BY j.name, u.name, j.sla, j.sladaysgoal, j.tenantclient.name, mgr.name, req.justificativa_requisitions
 ORDER BY u.name, j.name
 """
 
@@ -481,17 +492,17 @@ def transformar(dados: dict) -> dict:
         nome_rec = RECRUTADORES_NOMES.get(r["recrutador"], r["recrutador"])
         sla_d = int(r["sla_dias"])
         sla_m = int(r["sla_meta_dias"])
-        # Extrair prioridade do nome da vaga
+        # Extrair prioridade do nome da vaga via regex
         vaga_nome = r["vaga"]
-        prioridade = "Média"
-        if "Máxima" in vaga_nome:
-            prioridade = "Máxima"
-        elif "Baixa" in vaga_nome:
-            prioridade = "Baixa"
-        # Limpar nome
-        vaga_limpo = vaga_nome
-        for tag in ["[ Máxima ] ", "[Máxima] ", "[Média] ", "[Baixa] "]:
-            vaga_limpo = vaga_limpo.replace(tag, "")
+        prio_match = re.search(r'\[\s*(Máxima|Média|Baixa)\s*\]', vaga_nome, re.IGNORECASE)
+        prioridade = prio_match.group(1).capitalize() if prio_match else "Média"
+        # Limpar nome removendo tag de prioridade
+        vaga_limpo = re.sub(r'\[\s*(?:Máxima|Média|Baixa)\s*\]\s*', '', vaga_nome, flags=re.IGNORECASE).strip()
+
+        # Extrair ID(s) Cadeira da observacao (justificativa da requisicao)
+        obs = r.get("observacao", "") or ""
+        cadeira_matches = re.findall(r'[A-Z]{2,10}-?\d{2,4}', obs)
+        id_cadeira = ", ".join(cadeira_matches) if cadeira_matches else ""
 
         vagas_detalhe.append({
             "vaga": vaga_limpo,
@@ -503,6 +514,8 @@ def transformar(dados: dict) -> dict:
             "prioridade": prioridade,
             "posicoes_abertas": int(r["posicoes_abertas"]),
             "data_criacao": r["data_criacao"][:10] if r.get("data_criacao") else "",
+            "gestor": r.get("gestor") or "",
+            "id_cadeira": id_cadeira,
         })
 
     # --- Banco de talentos ---
@@ -541,7 +554,7 @@ def transformar(dados: dict) -> dict:
             "hcHolding": hc_emp.get("Seazone Holding", 0),
             "vagasSZS": vagas_emp.get("Seazone Serviços", 0),
             "vagasSZI": vagas_emp.get("Seazone Investimentos", 0),
-            "vagasGO": vagas_emp.get("Seazone Gestao de Obras", 0),
+            "vagasGO": vagas_emp.get("Seazone Gestao de Obras", 0) or vagas_emp.get("Seazone Gestão de Obras", 0) or vagas_emp.get("SZN Gestão de Obras", 0) or vagas_emp.get("SZN Gestao de Obras", 0),
             "admTotal": adm_total,
             "admAberto": adm_aberto,
             "admConcluidas": adm_concluidas,
@@ -562,7 +575,7 @@ def transformar(dados: dict) -> dict:
 
 def build_datajs(t: dict) -> str:
     """Gera o conteudo do data.js."""
-    agora = datetime.now().strftime("%d/%m/%Y %H:%M")
+    agora = datetime.now().strftime("%d/%m/%Y")
     js = lambda v: json.dumps(v, ensure_ascii=False)
 
     return f"""// data.js — KPIs People Inhire
@@ -601,9 +614,54 @@ window.KPI_DATA = {{
   vagasDetalhe: {js(t['vagas_detalhe'])},
 
   // Resumo (snapshot atual)
-  resumo: {js(t['resumo'])}
+  resumo: {js(t['resumo'])},
+
+  // Historico de execucoes
+  history: {js(t.get('history', []))}
 }};
 """
+
+
+# ============================================================
+# HISTORY TRACKING
+# ============================================================
+
+
+def update_history(transformado: dict, errors: list[dict]) -> list[dict]:
+    """Appends a new entry to history.json and returns the history list."""
+    # Read existing history
+    history = []
+    if os.path.exists(HISTORY_JSON_PATH):
+        try:
+            with open(HISTORY_JSON_PATH, "r", encoding="utf-8") as f:
+                history = json.load(f)
+        except (json.JSONDecodeError, IOError):
+            history = []
+
+    resumo = transformado.get("resumo", {})
+    entry = {
+        "data_hora": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "status": "success" if len(errors) == 0 else "error",
+        "posicoes_abertas": resumo.get("posAbertas", 0),
+        "headcount": resumo.get("headcount", 0),
+        "sla_medio": resumo.get("slaMedio", 0),
+        "cfo_atualizado": False,
+        "erros": len(errors),
+        "erros_detalhe": errors,
+    }
+
+    history.append(entry)
+
+    # Keep max 365 entries
+    if len(history) > 365:
+        history = history[-365:]
+
+    # Write back
+    os.makedirs(os.path.dirname(HISTORY_JSON_PATH), exist_ok=True)
+    with open(HISTORY_JSON_PATH, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
+
+    return history
 
 
 # ============================================================
@@ -613,8 +671,44 @@ window.KPI_DATA = {{
 if __name__ == "__main__":
     print(f"[sync] Iniciando — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
 
-    dados = coletar_dados()
+    # Collect data with per-query error handling
+    queries = {
+        "entrevistas": SQL_ENTREVISTAS,
+        "contratacoes_mes": SQL_CONTRATACOES_MES,
+        "desligamentos": SQL_DESLIGAMENTOS,
+        "canceladas": SQL_CANCELADAS,
+        "departamentos": SQL_DEPARTAMENTOS,
+        "hc_empresa": SQL_HC_EMPRESA,
+        "headcount": SQL_HEADCOUNT,
+        "sup_novos": SQL_SUP_NOVOS,
+        "sup_fin": SQL_SUP_FIN,
+        "admissoes": SQL_ADMISSOES,
+        "pos_abertas": SQL_POS_ABERTAS,
+        "acima_sla": SQL_ACIMA_SLA,
+        "sla_medio": SQL_SLA_MEDIO,
+        "vagas_empresa": SQL_VAGAS_EMPRESA,
+        "vagas_detalhe": SQL_VAGAS_DETALHE,
+        "banco_talentos": SQL_BANCO_TALENTOS,
+        "pct_aceitos": SQL_PCT_ACEITOS,
+    }
+
+    dados = {}
+    errors = []
+    for nome, sql in queries.items():
+        try:
+            print(f"[sync] {nome}...")
+            dados[nome] = nekt_query(sql)
+        except Exception as e:
+            print(f"[ERRO] Query '{nome}' falhou: {e}", file=sys.stderr)
+            dados[nome] = []
+            errors.append({"query": nome, "error": str(e)})
+
     transformado = transformar(dados)
+
+    # Update history and attach to output
+    history = update_history(transformado, errors)
+    transformado["history"] = history
+
     content = build_datajs(transformado)
 
     with open(DATA_JS_PATH, "w", encoding="utf-8") as f:
@@ -623,4 +717,6 @@ if __name__ == "__main__":
     r = transformado["resumo"]
     print(f"[sync] data.js atualizado em: {DATA_JS_PATH}")
     print(f"[sync] Resumo: {r['posAbertas']} pos abertas, {r['posAcimaSla']} acima SLA, HC {r['headcount']}")
+    if errors:
+        print(f"[sync] ATENCAO: {len(errors)} queries falharam: {[e['query'] for e in errors]}")
     print("[sync] Concluido.")

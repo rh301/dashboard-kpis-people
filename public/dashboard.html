@@ -83,7 +83,19 @@
 
 <div class="header">
   <h1>Dashboard KPI People</h1>
-  <div class="date" id="headerDate">Dados atualizados em ...</div>
+  <div style="display:flex;gap:12px;align-items:center">
+    <div style="display:flex;gap:4px;align-items:center">
+      <label style="font-size:12px;color:var(--muted);margin-right:4px">Período:</label>
+      <button class="filter-btn period-filter" onclick="setGlobalPeriod('dia',this)">Dia</button>
+      <button class="filter-btn period-filter" onclick="setGlobalPeriod('semana',this)">Semana</button>
+      <button class="filter-btn period-filter" onclick="setGlobalPeriod('mes',this)">Mês</button>
+      <button class="filter-btn period-filter" onclick="setGlobalPeriod('ano',this)">Ano</button>
+      <button class="filter-btn period-filter" onclick="setGlobalPeriod('semanaRolante',this)">Semana Rolante</button>
+      <button class="filter-btn period-filter active" onclick="setGlobalPeriod('mesRolante',this)">Mês Rolante</button>
+      <button class="filter-btn period-filter" onclick="setGlobalPeriod('anoRolante',this)">Ano Rolante</button>
+    </div>
+    <div class="date" id="headerDate">Dados atualizados em ...</div>
+  </div>
 </div>
 
 <div class="tabs">
@@ -92,17 +104,24 @@
   <button class="tab" onclick="showTab('cultura')">Cultura</button>
   <button class="tab" onclick="showTab('dp')">DP</button>
   <button class="tab" onclick="showTab('headcount')">Headcount</button>
+  <button class="tab" onclick="showTab('historico')">Histórico</button>
 </div>
 
 <!-- ===================== PAINEL R&S ===================== -->
 <div id="menu" class="content active">
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:16px">
+    <label style="font-size:12px;color:var(--muted);margin-right:4px">Recrutador:</label>
+    <button class="filter-btn recruiter-filter active" onclick="setRecruiterFilter('Todos',this)">Todos</button>
+    <button class="filter-btn recruiter-filter" onclick="setRecruiterFilter('Jonas',this)">Jonas</button>
+    <button class="filter-btn recruiter-filter" onclick="setRecruiterFilter('Júlia',this)">Júlia</button>
+  </div>
   <div class="grid grid-4" id="rsCards"></div>
   <div class="grid grid-3" id="rsTablesCards"></div>
   <div class="card" id="vagasDetalheCard">
     <div class="card-title">Detalhe das Vagas Abertas</div>
     <table>
       <thead>
-        <tr><th>Recrutador</th><th>Prioridade</th><th>Vaga</th><th>SLA (dias)</th><th>Meta SLA</th><th>Status SLA</th><th>Empresa</th><th>Início</th><th>Posições</th></tr>
+        <tr><th>Recrutador</th><th>ID Cadeira</th><th>Prioridade</th><th>Vaga</th><th>SLA (dias)</th><th>Meta SLA</th><th>Status SLA</th><th>Empresa</th><th>Gestor</th><th>Início</th><th>Posições</th></tr>
       </thead>
       <tbody id="tbVagasDetalhe"></tbody>
     </table>
@@ -288,6 +307,19 @@
   </div>
 </div>
 
+<!-- ===================== HISTÓRICO ===================== -->
+<div id="historico" class="content">
+  <div class="card">
+    <div class="card-title">Histórico de Sincronizações</div>
+    <table>
+      <thead>
+        <tr><th>Data/Hora</th><th>Status</th><th>Posições Abertas</th><th>Headcount</th><th>SLA Médio</th><th>CFO Atualizado</th><th>Erros</th></tr>
+      </thead>
+      <tbody id="tbHistorico"></tbody>
+    </table>
+  </div>
+</div>
+
 <script src="data.js"></script>
 <script>
 const KPI_DATA = window.KPI_DATA;
@@ -369,7 +401,7 @@ function renderEntTable(mode) {
 }
 
 function setEntView(mode, btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('#kpi .filter-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
   renderEntTable(mode);
 }
@@ -377,7 +409,7 @@ function setEntView(mode, btn) {
 renderEntTable('dia');
 
 // Chart
-new Chart(document.getElementById('chartEntrevistas'), {
+window._chartEnt = new Chart(document.getElementById('chartEntrevistas'), {
   type: 'bar',
   data: {
     labels: allDates.map(d => { const p=d.split('-'); return p[2]+'/'+p[1]; }),
@@ -397,7 +429,7 @@ const contClara = KPI_DATA.contClara;
 const contJonas = KPI_DATA.contJonas;
 const contOutro = KPI_DATA.contOutro;
 
-new Chart(document.getElementById('chartContratacoes'), {
+window._chartCont = new Chart(document.getElementById('chartContratacoes'), {
   type: 'bar',
   data: {
     labels: contMeses,
@@ -542,7 +574,7 @@ mkeys.reverse().forEach((m,i) => {
 
 // Chart (monthly for overview)
 const desChartData = aggDes(getMonthKey);
-new Chart(document.getElementById('chartDesligamentos'), {
+window._chartDes = new Chart(document.getElementById('chartDesligamentos'), {
   type: 'bar',
   data: {
     labels: desChartData.keys.map(getMonthLabel),
@@ -731,7 +763,7 @@ supMkeys.reverse().forEach((m,i) => {
 });
 
 // Chart: Suportes por Mês (novos vs finalizados)
-new Chart(document.getElementById('chartSuportesMes'), {
+window._chartSup = new Chart(document.getElementById('chartSuportesMes'), {
   type: 'bar',
   data: {
     labels: supByMonth.keys.map(getMonthLabel),
@@ -771,22 +803,13 @@ new Chart(document.getElementById('chartEmpresas'), {
 // ============================================================
 
 // --- R&S Cards ---
-document.getElementById('rsCards').innerHTML = `
-  <div class="card"><div class="card-title">Posições Abertas</div><div class="card-value">${R.posAbertas}</div>
-    <div class="card-sub">Clara ${R.clara.posAbertas} · Jonas ${R.jonas.posAbertas} · Júlia ${R.julia.posAbertas} · Mario ${R.mario.posAbertas}</div></div>
-  <div class="card"><div class="card-title">SLA Médio</div><div class="card-value">${R.slaMedio.toFixed(1).replace('.',',')}<span style="font-size:16px;color:var(--muted)"> dias</span></div>
-    <div class="card-sub">Meta padrão: 20 dias</div></div>
-  <div class="card"><div class="card-title">Vagas Acima do SLA</div><div class="card-value sla-over">${R.posAcimaSla}</div>
-    <div class="card-sub">${KPI_DATA.vagasDetalhe.filter(v=>v.acima_sla).map(v=>v.vaga+' ('+v.sla_dias+'d)').join(' · ') || 'Nenhuma'}</div></div>
-  <div class="card"><div class="card-title">% Aceitos Entrev. Final</div><div class="card-value">${R.pctAceitosFinal.toFixed(1)}%</div>
-    <div class="card-sub">no período</div></div>
-`;
+renderRsCards('Todos');
 
 // --- R&S Tables Cards ---
 document.getElementById('rsTablesCards').innerHTML = `
   <div class="card"><div class="card-title">Vagas por Empresa</div><table>
     <tr><td>Seazone Serviços</td><td><span class="badge badge-blue">${R.vagasSZS}</span></td></tr>
-    <tr><td>Gestão de Obras</td><td><span class="badge badge-purple">${R.vagasGO}</span></td></tr>
+    <tr><td>SZN Gestão de Obras</td><td><span class="badge badge-purple">${R.vagasGO}</span></td></tr>
     <tr><td>Seazone Investimentos</td><td><span class="badge ${R.vagasSZI?'badge-orange':'badge-muted'}">${R.vagasSZI}</span></td></tr>
   </table></div>
   <div class="card"><div class="card-title">Vagas por Recrutador</div><table>
@@ -806,13 +829,62 @@ document.getElementById('rsTablesCards').innerHTML = `
 
 // --- Vagas Detalhe Table ---
 const prioColors = {Máxima:'badge-red',Média:'badge-yellow',Baixa:'badge-green'};
-document.getElementById('tbVagasDetalhe').innerHTML = KPI_DATA.vagasDetalhe.map(v => {
-  const slaClass = v.acima_sla ? 'class="sla-over"' : '';
-  const slaStatus = v.acima_sla ? '<span class="sla-over">ACIMA</span>' : '<span class="sla-ok">OK</span>';
-  const dtParts = v.data_criacao.split('-');
-  const dtFmt = dtParts.length===3 ? dtParts[2]+'/'+dtParts[1]+'/'+dtParts[0] : '';
-  return `<tr><td>${v.recrutador}</td><td><span class="badge ${prioColors[v.prioridade]||'badge-yellow'}">${v.prioridade}</span></td><td>${v.vaga}</td><td ${slaClass}>${v.sla_dias}</td><td>${v.sla_meta}</td><td>${slaStatus}</td><td>${v.empresa}</td><td>${dtFmt}</td><td>${v.posicoes_abertas}</td></tr>`;
-}).join('');
+
+// Recruiter filter state
+let currentRecruiter = 'Todos';
+
+function renderVagasDetalhe(recruiter) {
+  const vagas = recruiter === 'Todos' ? KPI_DATA.vagasDetalhe : KPI_DATA.vagasDetalhe.filter(v => v.recrutador === recruiter);
+  document.getElementById('tbVagasDetalhe').innerHTML = vagas.map(v => {
+    const slaClass = v.acima_sla ? 'class="sla-over"' : '';
+    const slaStatus = v.acima_sla ? '<span class="sla-over">ACIMA</span>' : '<span class="sla-ok">OK</span>';
+    const dtParts = v.data_criacao.split('-');
+    const dtFmt = dtParts.length===3 ? dtParts[2]+'/'+dtParts[1]+'/'+dtParts[0] : '';
+    const idCadeira = v.id_cadeira || '-';
+    const gestor = v.gestor || '-';
+    return `<tr><td>${v.recrutador}</td><td>${idCadeira}</td><td><span class="badge ${prioColors[v.prioridade]||'badge-yellow'}">${v.prioridade}</span></td><td>${v.vaga}</td><td ${slaClass}>${v.sla_dias}</td><td>${v.sla_meta}</td><td>${slaStatus}</td><td>${v.empresa}</td><td>${gestor}</td><td>${dtFmt}</td><td>${v.posicoes_abertas}</td></tr>`;
+  }).join('');
+}
+
+function renderRsCards(recruiter) {
+  if (recruiter === 'Todos') {
+    document.getElementById('rsCards').innerHTML = `
+      <div class="card"><div class="card-title">Posições Abertas</div><div class="card-value">${R.posAbertas}</div>
+        <div class="card-sub">Clara ${R.clara.posAbertas} · Jonas ${R.jonas.posAbertas} · Júlia ${R.julia.posAbertas} · Mario ${R.mario.posAbertas}</div></div>
+      <div class="card"><div class="card-title">SLA Médio</div><div class="card-value">${R.slaMedio.toFixed(1).replace('.',',')}<span style="font-size:16px;color:var(--muted)"> dias</span></div>
+        <div class="card-sub">Meta padrão: 20 dias</div></div>
+      <div class="card"><div class="card-title">Vagas Acima do SLA</div><div class="card-value sla-over">${R.posAcimaSla}</div>
+        <div class="card-sub">${KPI_DATA.vagasDetalhe.filter(v=>v.acima_sla).map(v=>v.vaga+' ('+v.sla_dias+'d)').join(' · ') || 'Nenhuma'}</div></div>
+      <div class="card"><div class="card-title">% Aceitos Entrev. Final</div><div class="card-value">${R.pctAceitosFinal.toFixed(1)}%</div>
+        <div class="card-sub">no período</div></div>
+    `;
+  } else {
+    const vagas = KPI_DATA.vagasDetalhe.filter(v => v.recrutador === recruiter);
+    const posAbertas = vagas.reduce((s,v) => s + v.posicoes_abertas, 0);
+    const acimaSla = vagas.filter(v => v.acima_sla).length;
+    const slaMedio = vagas.length > 0 ? vagas.reduce((s,v) => s + v.sla_dias, 0) / vagas.length : 0;
+    document.getElementById('rsCards').innerHTML = `
+      <div class="card"><div class="card-title">Posições Abertas (${recruiter})</div><div class="card-value">${posAbertas}</div>
+        <div class="card-sub">${vagas.length} vaga(s)</div></div>
+      <div class="card"><div class="card-title">SLA Médio (${recruiter})</div><div class="card-value">${slaMedio.toFixed(1).replace('.',',')}<span style="font-size:16px;color:var(--muted)"> dias</span></div>
+        <div class="card-sub">Meta padrão: 20 dias</div></div>
+      <div class="card"><div class="card-title">Vagas Acima do SLA (${recruiter})</div><div class="card-value sla-over">${acimaSla}</div>
+        <div class="card-sub">${vagas.filter(v=>v.acima_sla).map(v=>v.vaga+' ('+v.sla_dias+'d)').join(' · ') || 'Nenhuma'}</div></div>
+      <div class="card"><div class="card-title">% Aceitos Entrev. Final</div><div class="card-value">${R.pctAceitosFinal.toFixed(1)}%</div>
+        <div class="card-sub">no período</div></div>
+    `;
+  }
+}
+
+function setRecruiterFilter(recruiter, btn) {
+  document.querySelectorAll('.recruiter-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentRecruiter = recruiter;
+  renderRsCards(recruiter);
+  renderVagasDetalhe(recruiter);
+}
+
+renderVagasDetalhe('Todos');
 
 // --- Banco de Talentos ---
 document.querySelector('#cardBancoTalentos .card-value').textContent = R.bancotalentos.toLocaleString('pt-BR');
@@ -845,6 +917,350 @@ document.getElementById('hcCards').innerHTML = `
   <div class="card"><div class="card-title">Seazone Investimentos</div><div class="card-value">${R.hcSZI}</div></div>
   <div class="card"><div class="card-title">SZN Gestão de Obras</div><div class="card-value">${R.hcGO}</div><div class="card-sub">+ ${R.hcHolding} Holding</div></div>
 `;
+
+// ============================================================
+// GLOBAL PERIOD FILTER
+// ============================================================
+let currentPeriod = 'mesRolante';
+
+function getDateRange(period) {
+  const today = new Date(KPI_DATA.todayISO);
+  let start, end;
+  end = new Date(today);
+
+  switch(period) {
+    case 'dia':
+      start = new Date(today);
+      break;
+    case 'semana': {
+      // Current ISO week Mon-Sun
+      const day = today.getDay() || 7; // Mon=1..Sun=7
+      start = new Date(today);
+      start.setDate(today.getDate() - day + 1);
+      end = new Date(start);
+      end.setDate(start.getDate() + 6);
+      break;
+    }
+    case 'mes':
+      start = new Date(today.getFullYear(), today.getMonth(), 1);
+      end = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+      break;
+    case 'ano':
+      start = new Date(today.getFullYear(), 0, 1);
+      end = new Date(today.getFullYear(), 11, 31);
+      break;
+    case 'semanaRolante':
+      start = new Date(today);
+      start.setDate(today.getDate() - 6);
+      break;
+    case 'mesRolante':
+      start = new Date(today);
+      start.setDate(today.getDate() - 29);
+      break;
+    case 'anoRolante':
+      start = new Date(today);
+      start.setDate(today.getDate() - 364);
+      break;
+  }
+  return { start, end };
+}
+
+function filterRawData(rawArray, dateIndex, start, end) {
+  return rawArray.filter(row => {
+    const d = new Date(row[dateIndex]);
+    return d >= start && d <= end;
+  });
+}
+
+function reRenderWithPeriod(period) {
+  const {start, end} = getDateRange(period);
+
+  // --- Entrevistas: filter raw, rebuild chart data and table ---
+  const filteredEnt = filterRawData(entrevistasRaw, 0, start, end);
+  const filtDates = [...new Set(filteredEnt.map(r => r[0]))].sort();
+  const filtEntByDateRec = {};
+  filtDates.forEach(d => { filtEntByDateRec[d] = {Clara:0,Jonas:0,'Júlia':0,Mario:0}; });
+  filteredEnt.forEach(([d,r,v]) => { if(filtEntByDateRec[d] && filtEntByDateRec[d][r] !== undefined) filtEntByDateRec[d][r] = v; });
+
+  const filtMonths = [...new Set(filtDates.map(getMonthKey))].sort();
+  const filtEntByMonthRec = {};
+  filtMonths.forEach(m => { filtEntByMonthRec[m] = {Clara:0,Jonas:0,'Júlia':0,Mario:0}; });
+  filtDates.forEach(d => {
+    const m = getMonthKey(d);
+    recs.forEach(r => { filtEntByMonthRec[m][r] += filtEntByDateRec[d][r]; });
+  });
+
+  // Re-render entrevistas table with filtered data
+  const entTable = document.getElementById('tbEntrevistas');
+  const entActiveBtn = document.querySelector('#kpi .filter-btn.active');
+  const entMode = entActiveBtn && entActiveBtn.textContent === 'Mês' ? 'mes' : 'dia';
+  const entCols = entMode === 'dia' ? filtDates : filtMonths;
+  const entData = entMode === 'dia' ? filtEntByDateRec : filtEntByMonthRec;
+  const entFmtCol = entMode === 'dia'
+    ? d => { const p=d.split('-'); return p[2]+'/'+p[1]; }
+    : getMonthLabel;
+
+  let entHtml = '<thead><tr><th></th>';
+  entCols.forEach(c => { entHtml += `<th class="rotate">${entFmtCol(c)}</th>`; });
+  entHtml += '<th class="rotate" style="color:var(--accent)">Total</th></tr></thead><tbody>';
+  recs.forEach(r => {
+    let rowTotal = 0;
+    entHtml += `<tr><td class="row-label"><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${colors[r]};margin-right:6px"></span>${r}</td>`;
+    entCols.forEach(c => {
+      const v = entData[c] ? entData[c][r] : 0;
+      rowTotal += v;
+      entHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+    });
+    entHtml += `<td class="row-total">${rowTotal}</td></tr>`;
+  });
+  entHtml += '<tr class="total-row"><td class="row-label">Total</td>';
+  let entGrand = 0;
+  entCols.forEach(c => {
+    const colTotal = recs.reduce((s,r) => s + (entData[c] ? entData[c][r] : 0), 0);
+    entGrand += colTotal;
+    entHtml += `<td class="val">${colTotal}</td>`;
+  });
+  entHtml += `<td class="row-total">${entGrand}</td></tr></tbody>`;
+  entTable.innerHTML = entHtml;
+
+  // Update entrevistas chart
+  if (window._chartEnt) window._chartEnt.destroy();
+  window._chartEnt = new Chart(document.getElementById('chartEntrevistas'), {
+    type: 'bar',
+    data: {
+      labels: filtDates.map(d => { const p=d.split('-'); return p[2]+'/'+p[1]; }),
+      datasets: recs.map(r => ({
+        label: r,
+        data: filtDates.map(d => filtEntByDateRec[d][r]),
+        backgroundColor: colors[r],
+        borderRadius: 3,
+      }))
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}} }
+  });
+
+  // --- Contratações chart: filter by period ---
+  if (window._chartCont) window._chartCont.destroy();
+  const contFilteredIdxs = [];
+  KPI_DATA.contMeses.forEach((label, i) => {
+    // Parse "Jan/25" to a date
+    const parts = label.split('/');
+    const mNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const mIdx = mNames.indexOf(parts[0]);
+    const yr = 2000 + parseInt(parts[1]);
+    const mDate = new Date(yr, mIdx, 15);
+    if (mDate >= start && mDate <= end) contFilteredIdxs.push(i);
+  });
+  window._chartCont = new Chart(document.getElementById('chartContratacoes'), {
+    type: 'bar',
+    data: {
+      labels: contFilteredIdxs.map(i => KPI_DATA.contMeses[i]),
+      datasets: [
+        { label:'Clara', data:contFilteredIdxs.map(i => KPI_DATA.contClara[i]), backgroundColor:'#22c55e', borderRadius:3 },
+        { label:'Jonas', data:contFilteredIdxs.map(i => KPI_DATA.contJonas[i]), backgroundColor:'#3b82f6', borderRadius:3 },
+        { label:'Outro', data:contFilteredIdxs.map(i => KPI_DATA.contOutro[i]), backgroundColor:'#6b7280', borderRadius:3 },
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}} }
+  });
+
+  // --- Desligamentos: filter raw and re-render ---
+  const filteredDes = filterRawData(desRaw, 0, start, end);
+  const filtDesDates = filteredDes.map(r => r[0]);
+  const filtDesData = {};
+  filteredDes.forEach(([d,t,f,v]) => { filtDesData[d] = {total:t, forcados:f, voluntarios:v}; });
+
+  // Re-render cultura table
+  const cultActiveBtn = document.querySelector('.cult-filter.active');
+  const cultMode = cultActiveBtn ? cultActiveBtn.textContent.toLowerCase().replace(' ','').replace('ê','e') : 'dia';
+
+  // Use the existing renderCultTable but with filtered data — we'll do a simple day-mode re-render
+  const cultTable = document.getElementById('tbCultura');
+  const cultFmt = d => { const p=d.split('-'); return p[2]+'/'+p[1]; };
+  let cultHtml = '<thead><tr><th></th>';
+  filtDesDates.forEach(c => { cultHtml += `<th class="rotate">${cultFmt(c)}</th>`; });
+  cultHtml += '<th class="rotate" style="color:var(--accent)">Total</th></tr></thead><tbody>';
+  desKpis.forEach(kpi => {
+    const key = desKpiKey[kpi];
+    let rowTotal = 0;
+    const clr = desKpiColors[kpi];
+    cultHtml += `<tr><td class="row-label" style="color:${clr}">${kpi}</td>`;
+    filtDesDates.forEach(c => {
+      const v = filtDesData[c] ? filtDesData[c][key] : 0;
+      rowTotal += v;
+      cultHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+    });
+    cultHtml += `<td class="row-total">${rowTotal}</td></tr>`;
+  });
+  cultHtml += '</tbody>';
+  cultTable.innerHTML = cultHtml;
+
+  // Update desligamentos chart
+  if (window._chartDes) window._chartDes.destroy();
+  const filtDesMonths = aggDesFiltered(filteredDes);
+  window._chartDes = new Chart(document.getElementById('chartDesligamentos'), {
+    type: 'bar',
+    data: {
+      labels: filtDesMonths.keys.map(getMonthLabel),
+      datasets: [
+        { label:'Forçados', data:filtDesMonths.keys.map(k=>filtDesMonths.agg[k].forcados), backgroundColor:'#ef4444', borderRadius:3 },
+        { label:'Voluntários', data:filtDesMonths.keys.map(k=>filtDesMonths.agg[k].voluntarios), backgroundColor:'#f97316', borderRadius:3 },
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{x:{stacked:true},y:{stacked:true,beginAtZero:true}} }
+  });
+
+  // Update desligamentos summary cards
+  const filtMkeys = filtDesMonths.keys.slice(-3);
+  filtMkeys.reverse().forEach((m,i) => {
+    const d = filtDesMonths.agg[m];
+    const el = document.getElementById(cardIds[i]);
+    if(el) {
+      el.innerHTML = `<div class="card-title">Desligamentos ${getMonthLabel(m)}</div><div class="card-value">${d.total}</div><div class="card-sub">${d.forcados} forçados · ${d.voluntarios} voluntários</div>`;
+    }
+  });
+
+  // --- Suportes: filter and re-render ---
+  const filteredSupNovos = filterRawData(supNovosRaw, 0, start, end);
+  const filteredSupFin = filterRawData(supFinRaw, 0, start, end);
+  const filtSupAllDates = [...new Set([...filteredSupNovos.map(r=>r[0]), ...filteredSupFin.map(r=>r[0])])].sort();
+  const filtSupNovosMap = {}; filteredSupNovos.forEach(([d,v]) => { filtSupNovosMap[d] = (filtSupNovosMap[d]||0) + v; });
+  const filtSupFinMap = {}; filteredSupFin.forEach(([d,v]) => { filtSupFinMap[d] = (filtSupFinMap[d]||0) + v; });
+  const filtSupData = {};
+  let filtRunning = 0;
+  filtSupAllDates.forEach(d => {
+    const n = filtSupNovosMap[d] || 0;
+    const f = filtSupFinMap[d] || 0;
+    filtRunning += n - f;
+    filtSupData[d] = { novos: n, finalizados: f, aberto: Math.max(0, filtRunning) };
+  });
+
+  const dpTable = document.getElementById('tbDP');
+  const dpFmt = d => { const p=d.split('-'); return p[2]+'/'+p[1]; };
+  let dpHtml = '<thead><tr><th></th>';
+  filtSupAllDates.forEach(c => { dpHtml += `<th class="rotate">${dpFmt(c)}</th>`; });
+  dpHtml += '<th class="rotate" style="color:var(--accent)">Total</th></tr></thead><tbody>';
+  supKpis.forEach(kpi => {
+    const key = supKpiKey[kpi];
+    let rowTotal = 0;
+    const clr = supKpiColors[kpi];
+    dpHtml += `<tr><td class="row-label" style="color:${clr}">${kpi}</td>`;
+    filtSupAllDates.forEach(c => {
+      const v = filtSupData[c] ? filtSupData[c][key] : 0;
+      rowTotal += v;
+      dpHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+    });
+    if (key === 'aberto') {
+      const lastVal = filtSupData[filtSupAllDates[filtSupAllDates.length-1]] ? filtSupData[filtSupAllDates[filtSupAllDates.length-1]][key] : 0;
+      dpHtml += `<td class="row-total">${lastVal}</td></tr>`;
+    } else {
+      dpHtml += `<td class="row-total">${rowTotal}</td></tr>`;
+    }
+  });
+  dpHtml += '</tbody>';
+  dpTable.innerHTML = dpHtml;
+
+  // Update suportes chart
+  if (window._chartSup) window._chartSup.destroy();
+  const filtSupByMonth = aggSupFiltered(filteredSupNovos, filteredSupFin);
+  window._chartSup = new Chart(document.getElementById('chartSuportesMes'), {
+    type: 'bar',
+    data: {
+      labels: filtSupByMonth.keys.map(getMonthLabel),
+      datasets: [
+        { label:'Novos', data:filtSupByMonth.keys.map(k=>filtSupByMonth.agg[k].novos), backgroundColor:'#3b82f6', borderRadius:3 },
+        { label:'Finalizados', data:filtSupByMonth.keys.map(k=>filtSupByMonth.agg[k].finalizados), backgroundColor:'#22c55e', borderRadius:3 },
+      ]
+    },
+    options: { responsive:true, maintainAspectRatio:false, plugins:{legend:{position:'bottom'}}, scales:{y:{beginAtZero:true}} }
+  });
+
+  // Update suportes summary cards
+  const filtSupMkeys = filtSupByMonth.keys.slice(-3);
+  filtSupMkeys.reverse().forEach((m,i) => {
+    const d = filtSupByMonth.agg[m];
+    const el = document.getElementById(supCardIds[i]);
+    if(el) {
+      el.innerHTML = `<div class="card-title">Suportes ${getMonthLabel(m)}</div><div class="card-value">${d.novos}</div><div class="card-sub">${d.finalizados} finalizados</div>`;
+    }
+  });
+}
+
+function aggDesFiltered(filteredRaw) {
+  const data = {};
+  filteredRaw.forEach(([d,t,f,v]) => { data[d] = {total:t, forcados:f, voluntarios:v}; });
+  const dates = filteredRaw.map(r => r[0]);
+  const keys = [...new Set(dates.map(getMonthKey))].sort();
+  const agg = {};
+  keys.forEach(k => { agg[k] = {total:0,forcados:0,voluntarios:0}; });
+  dates.forEach(d => {
+    const k = getMonthKey(d);
+    agg[k].total += data[d].total;
+    agg[k].forcados += data[d].forcados;
+    agg[k].voluntarios += data[d].voluntarios;
+  });
+  return {keys, agg};
+}
+
+function aggSupFiltered(filtNovos, filtFin) {
+  const novosMap = {};
+  filtNovos.forEach(([d,v]) => {
+    const k = getMonthKey(d);
+    novosMap[k] = (novosMap[k]||0) + v;
+  });
+  const finMap = {};
+  filtFin.forEach(([d,v]) => {
+    const k = getMonthKey(d);
+    finMap[k] = (finMap[k]||0) + v;
+  });
+  const keys = [...new Set([...Object.keys(novosMap), ...Object.keys(finMap)])].sort();
+  const agg = {};
+  keys.forEach(k => { agg[k] = { novos: novosMap[k]||0, finalizados: finMap[k]||0 }; });
+  return {keys, agg};
+}
+
+function setGlobalPeriod(period, btn) {
+  document.querySelectorAll('.period-filter').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  currentPeriod = period;
+  reRenderWithPeriod(period);
+}
+
+// Initial render with default period
+reRenderWithPeriod('mesRolante');
+
+// ============================================================
+// HISTÓRICO TAB
+// ============================================================
+function renderHistorico() {
+  const history = KPI_DATA.history || [];
+  const tbody = document.getElementById('tbHistorico');
+  if (history.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:24px">Nenhum registro de sincronização encontrado</td></tr>';
+    return;
+  }
+  tbody.innerHTML = history.map(h => {
+    const statusBadge = h.status === 'success'
+      ? '<span class="badge badge-green">Sucesso</span>'
+      : '<span class="badge badge-red">Erro</span>';
+    const cfoBadge = h.cfo_atualizado === true
+      ? '<span class="badge badge-green">Sim</span>'
+      : h.cfo_atualizado === false
+        ? '<span class="badge badge-yellow">Pendente</span>'
+        : '<span class="badge badge-muted">-</span>';
+    const erros = h.erros ? `<span class="badge badge-red">${h.erros}</span>` : '<span class="badge badge-green">0</span>';
+    return `<tr>
+      <td>${h.data_hora || '-'}</td>
+      <td>${statusBadge}</td>
+      <td>${h.posicoes_abertas ?? '-'}</td>
+      <td>${h.headcount ?? '-'}</td>
+      <td>${h.sla_medio != null ? h.sla_medio.toFixed(1).replace('.',',') : '-'}</td>
+      <td>${cfoBadge}</td>
+      <td>${erros}</td>
+    </tr>`;
+  }).join('');
+}
+renderHistorico();
 </script>
 </body>
 </html>
