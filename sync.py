@@ -15,6 +15,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 from datetime import date, datetime
 
 import requests
@@ -27,6 +28,11 @@ NEKT_API_URL = "https://api.nekt.ai/api/v1/sql-query/"
 NEKT_API_KEY = os.environ.get("NEKT_API_KEY", "")
 DATA_JS_PATH = os.path.join(os.path.dirname(__file__), "public", "data.js")
 HISTORY_JSON_PATH = os.path.join(os.path.dirname(__file__), "public", "history.json")
+
+# Google Sheets
+GSHEETS_CREDS_JSON = os.environ.get("GSHEETS_CREDS_JSON", "")
+GSHEETS_SPREADSHEET_ID = "1LbFqZEWsj8edh8O0Q7fGpcam4rJH4a6Qp7qBtHvlpv0"
+GSHEETS_TAB_NAME = os.environ.get("GSHEETS_TAB_NAME", "teste KPI")
 
 # Etapas de entrevista
 ETAPAS_ENTREVISTA = (
@@ -665,6 +671,124 @@ def update_history(transformado: dict, errors: list[dict]) -> list[dict]:
 
 
 # ============================================================
+# GOOGLE SHEETS
+# ============================================================
+
+
+def update_google_sheets(transformado: dict):
+    """Escreve KPIs do dia na planilha Google Sheets."""
+    if not GSHEETS_CREDS_JSON:
+        print("[sheets] GSHEETS_CREDS_JSON nao definida, pulando")
+        return
+
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except ImportError:
+        print("[sheets] gspread/google-auth nao instalados, pulando")
+        return
+
+    # Credenciais via JSON string (GitHub secret) ou arquivo local
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    if os.path.isfile(GSHEETS_CREDS_JSON):
+        creds = Credentials.from_service_account_file(GSHEETS_CREDS_JSON, scopes=scopes)
+    else:
+        creds_dict = json.loads(GSHEETS_CREDS_JSON)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
+
+    gc = gspread.authorize(creds)
+    sh = gc.open_by_key(GSHEETS_SPREADSHEET_ID)
+    ws = sh.worksheet(GSHEETS_TAB_NAME)
+
+    hoje = date.today()
+    hoje_str = hoje.strftime("%d/%m/%Y")
+    hoje_iso = hoje.isoformat()
+    resumo = transformado["resumo"]
+
+    # --- Valores diarios das series temporais ---
+    def sum_date(raw, dt):
+        return sum(r[-1] for r in raw if r[0] == dt)
+
+    def sum_date_rec(raw, dt, rec):
+        return sum(r[2] for r in raw if r[0] == dt and r[1] == rec)
+
+    ent_total = sum_date(transformado["entrevistas_raw"], hoje_iso)
+    ent_clara = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Clara")
+    ent_jonas = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Jonas")
+    ent_julia = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Júlia")
+
+    deslig = [r for r in transformado["deslig_raw"] if r[0] == hoje_iso]
+    deslig_total = sum(r[1] for r in deslig)
+    deslig_forc = sum(r[2] for r in deslig)
+    deslig_vol = sum(r[3] for r in deslig)
+
+    sup_novos = sum_date(transformado["sup_novos_raw"], hoje_iso)
+    sup_fin = sum_date(transformado["sup_fin_raw"], hoje_iso)
+
+    # --- Mapeamento: linha (0-indexed) -> valor ---
+    values_map = {
+        1: hoje_str,                                # Data
+        5: resumo["bancotalentos"],                 # Banco de Talentos
+        8: resumo["posAbertas"],                    # Posicoes Abertas Total
+        9: resumo["clara"]["posAbertas"],           # Posicoes Abertas Clara
+        10: resumo["jonas"]["posAbertas"],          # Posicoes Abertas Jonas
+        11: resumo["julia"]["posAbertas"],          # Posicoes Abertas Julia
+        12: resumo["posAcimaSla"],                  # Acima SLA Total
+        13: resumo["clara"]["acimaSla"],            # Acima SLA Clara
+        14: resumo["jonas"]["acimaSla"],            # Acima SLA Jonas
+        15: resumo["julia"]["acimaSla"],            # Acima SLA Julia
+        16: resumo["vagasSZS"],                     # Vagas SZS
+        17: resumo["vagasSZI"],                     # Vagas SZI
+        22: ent_total,                              # Entrevistas Total
+        23: ent_clara,                              # Entrevistas Clara
+        24: ent_jonas,                              # Entrevistas Jonas
+        25: ent_julia,                              # Entrevistas Julia
+        26: str(resumo["pctAceitosFinal"]).replace(".", ",") + "%",
+        34: sup_novos,                              # Suportes Novos
+        36: sup_fin,                                # Suportes Finalizados
+        37: resumo["admAberto"],                    # Admissoes em aberto
+        43: deslig_total,                           # Desligamentos Total
+        44: deslig_forc,                            # Desligamentos Forcados
+        45: deslig_vol,                             # Desligamentos Voluntarios
+    }
+
+    # --- Encontrar coluna destino ---
+    all_vals = ws.get_all_values()
+    max_cols = max(len(r) for r in all_vals) if all_vals else 1
+
+    # Se hoje ja tem coluna, sobrescreve
+    row1 = all_vals[1] if len(all_vals) > 1 else []
+    col_idx = None
+    for c, val in enumerate(row1):
+        if val == hoje_str:
+            col_idx = c
+            break
+
+    # Senao, proxima coluna vazia
+    if col_idx is None:
+        col_idx = 1
+        for c in range(1, max_cols + 1):
+            has_value = any(c < len(r) and r[c].strip() for r in all_vals)
+            if not has_value:
+                col_idx = c
+                break
+            col_idx = c + 1
+
+    # --- Escrever ---
+    from gspread.utils import rowcol_to_a1
+
+    cells = []
+    for row_idx, value in sorted(values_map.items()):
+        cell = rowcol_to_a1(row_idx + 1, col_idx + 1)
+        cells.append({"range": cell, "values": [[value]]})
+
+    ws.batch_update(cells, value_input_option="USER_ENTERED")
+
+    col_letter = chr(65 + col_idx) if col_idx < 26 else chr(64 + col_idx // 26) + chr(65 + col_idx % 26)
+    print(f"[sheets] {len(cells)} KPIs escritos na coluna {col_letter} ({hoje_str}) da aba '{GSHEETS_TAB_NAME}'")
+
+
+# ============================================================
 # MAIN
 # ============================================================
 
@@ -719,4 +843,11 @@ if __name__ == "__main__":
     print(f"[sync] Resumo: {r['posAbertas']} pos abertas, {r['posAcimaSla']} acima SLA, HC {r['headcount']}")
     if errors:
         print(f"[sync] ATENCAO: {len(errors)} queries falharam: {[e['query'] for e in errors]}")
+
+    # Atualizar Google Sheets
+    try:
+        update_google_sheets(transformado)
+    except Exception as e:
+        print(f"[sheets] ERRO ao atualizar planilha: {e}", file=sys.stderr)
+
     print("[sync] Concluido.")
