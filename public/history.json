@@ -58,5 +58,15 @@
     "cfo_atualizado": false,
     "erros": 0,
     "erros_detalhe": []
+  },
+  {
+    "data_hora": "18/03/2026 05:47",
+    "status": "success",
+    "posicoes_abertas": 3,
+    "headcount": 358,
+    "sla_medio": 34.67,
+    "cfo_atualizado": false,
+    "erros": 0,
+    "erros_detalhe": []
   }
 ]
