@@ -154,16 +154,20 @@ GROUP BY 1, 2
 ORDER BY 1, 2
 """
 
-# --- Cultura: Desligamentos por dia (historico completo) ---
+# --- Cultura: Desligamentos por dia (Pipefy pipe 305642527) ---
 SQL_DESLIGAMENTOS = """
 SELECT
-  DATE(dismissal_date) AS data_desligamento,
+  DATE_FORMAT(DATE_PARSE(data_do_desligamento, '%d/%m/%Y'), '%Y-%m-%d') AS data_desligamento,
   COUNT(*) AS total,
-  SUM(CASE WHEN CAST(dismissal_type_id AS VARCHAR) IN ('1','2','18','14') THEN 1 ELSE 0 END) AS forcados,
-  SUM(CASE WHEN CAST(dismissal_type_id AS VARCHAR) IN ('3','19','6','13') THEN 1 ELSE 0 END) AS voluntarios
-FROM "nekt_silver"."bd_rh_convenia_dismissed_normalizado"
-WHERE dismissal_date >= '2025-01-01'
-GROUP BY DATE(dismissal_date)
+  SUM(CASE WHEN modalidade_do_desligamento = 'Iniciativa da Empresa' THEN 1 ELSE 0 END) AS forcados,
+  SUM(CASE WHEN modalidade_do_desligamento = 'Iniciativa do Seazoner' THEN 1 ELSE 0 END) AS voluntarios
+FROM "nekt_silver"."all_cards_305642527_colunas_expandidas"
+WHERE title != 'Teste'
+  AND currentphasename IN ('Desligamento Realizado', 'Realizando Desligamento')
+  AND data_do_desligamento IS NOT NULL
+  AND data_do_desligamento != ''
+  AND DATE_PARSE(data_do_desligamento, '%d/%m/%Y') >= DATE '2025-01-01'
+GROUP BY DATE_FORMAT(DATE_PARSE(data_do_desligamento, '%d/%m/%Y'), '%Y-%m-%d')
 ORDER BY data_desligamento
 """
 
