@@ -90,41 +90,11 @@
     "erros_detalhe": []
   },
   {
-    "data_hora": "21/03/2026 05:11",
+    "data_hora": "20/03/2026 12:14",
     "status": "success",
     "posicoes_abertas": 3,
     "headcount": 356,
-    "sla_medio": 37.67,
-    "cfo_atualizado": false,
-    "erros": 0,
-    "erros_detalhe": []
-  },
-  {
-    "data_hora": "22/03/2026 05:36",
-    "status": "success",
-    "posicoes_abertas": 3,
-    "headcount": 347,
-    "sla_medio": 38.67,
-    "cfo_atualizado": false,
-    "erros": 0,
-    "erros_detalhe": []
-  },
-  {
-    "data_hora": "23/03/2026 06:00",
-    "status": "success",
-    "posicoes_abertas": 3,
-    "headcount": 347,
-    "sla_medio": 39.67,
-    "cfo_atualizado": false,
-    "erros": 0,
-    "erros_detalhe": []
-  },
-  {
-    "data_hora": "24/03/2026 05:41",
-    "status": "success",
-    "posicoes_abertas": 3,
-    "headcount": 347,
-    "sla_medio": 40.67,
+    "sla_medio": 36.96,
     "cfo_atualizado": false,
     "erros": 0,
     "erros_detalhe": []
