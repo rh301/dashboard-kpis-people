@@ -16,7 +16,10 @@ import os
 import re
 import sys
 import tempfile
-from datetime import date, datetime
+from datetime import date, datetime, timezone, timedelta
+
+# Timezone BRT (UTC-3) — garante data correta quando roda no GitHub Actions (UTC)
+BRT = timezone(timedelta(hours=-3))
 
 import requests
 
@@ -398,7 +401,7 @@ def mes_label(iso: str) -> str:
 
 def transformar(dados: dict) -> dict:
     """Transforma dados brutos no formato que o dashboard espera."""
-    hoje = date.today().isoformat()
+    hoje = datetime.now(BRT).date().isoformat()
 
     # --- Entrevistas: tuples [date, recruiter, count] ---
     entrevistas_raw = []
@@ -585,7 +588,7 @@ def transformar(dados: dict) -> dict:
 
 def build_datajs(t: dict) -> str:
     """Gera o conteudo do data.js."""
-    agora = datetime.now().strftime("%d/%m/%Y")
+    agora = datetime.now(BRT).strftime("%d/%m/%Y")
     js = lambda v: json.dumps(v, ensure_ascii=False)
 
     return f"""// data.js — KPIs People Inhire
@@ -650,12 +653,19 @@ def update_history(transformado: dict, errors: list[dict]) -> list[dict]:
 
     resumo = transformado.get("resumo", {})
     entry = {
-        "data_hora": datetime.now().strftime("%d/%m/%Y %H:%M"),
+        "data_hora": datetime.now(BRT).strftime("%d/%m/%Y %H:%M"),
         "status": "success" if len(errors) == 0 else "error",
         "posicoes_abertas": resumo.get("posAbertas", 0),
-        "headcount": resumo.get("headcount", 0),
+        "acima_sla": resumo.get("posAcimaSla", 0),
         "sla_medio": resumo.get("slaMedio", 0),
-        "cfo_atualizado": False,
+        "headcount": resumo.get("headcount", 0),
+        "hc_ativos": resumo.get("hcAtivos", 0),
+        "hc_ferias": resumo.get("hcFerias", 0),
+        "banco_talentos": resumo.get("bancotalentos", 0),
+        "pct_aceitos": resumo.get("pctAceitosFinal", 0),
+        "adm_aberto": resumo.get("admAberto", 0),
+        "adm_concluidas": resumo.get("admConcluidas", 0),
+        "adm_canceladas": resumo.get("admCanceladas", 0),
         "erros": len(errors),
         "erros_detalhe": errors,
     }
@@ -704,7 +714,7 @@ def update_google_sheets(transformado: dict):
     sh = gc.open_by_key(GSHEETS_SPREADSHEET_ID)
     ws = sh.worksheet(GSHEETS_TAB_NAME)
 
-    hoje = date.today()
+    hoje = datetime.now(BRT).date()
     hoje_str = hoje.strftime("%d/%m/%Y")
     hoje_iso = hoje.isoformat()
     resumo = transformado["resumo"]
@@ -797,7 +807,7 @@ def update_google_sheets(transformado: dict):
 # ============================================================
 
 if __name__ == "__main__":
-    print(f"[sync] Iniciando — {datetime.now().strftime('%d/%m/%Y %H:%M')}")
+    print(f"[sync] Iniciando — {datetime.now(BRT).strftime('%d/%m/%Y %H:%M')}")
 
     # Collect data with per-query error handling
     queries = {

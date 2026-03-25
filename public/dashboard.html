@@ -68,13 +68,13 @@
   .period-select:focus { border-color: var(--accent); }
   #tbEntrevistas th.rotate { writing-mode: vertical-lr; transform: rotate(180deg); text-align: left; padding: 8px 4px; min-width: 32px; font-size: 10px; }
   #tbEntrevistas td.val { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; }
-  #tbEntrevistas td.val-zero { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; color: var(--border); }
+  #tbEntrevistas td.val-zero { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; color: var(--muted); }
   #tbEntrevistas td.row-label { font-weight: 600; padding: 6px 12px 6px 0; white-space: nowrap; position: sticky; left: 0; background: var(--card); z-index: 1; }
   #tbEntrevistas td.row-total { font-weight: 700; text-align: center; padding: 6px 4px; min-width: 32px; color: var(--accent); }
   #tbEntrevistas tr.total-row td { border-top: 2px solid var(--border); font-weight: 700; color: var(--accent); }
-  .cultura-table th.rotate { writing-mode: vertical-lr; transform: rotate(180deg); text-align: left; padding: 8px 4px; min-width: 32px; font-size: 10px; }
+  .cultura-table th.rotate { text-align: center; padding: 8px 4px; min-width: 32px; font-size: 10px; }
   .cultura-table td.val { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; }
-  .cultura-table td.val-zero { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; color: var(--border); }
+  .cultura-table td.val-zero { text-align: center; padding: 6px 4px; font-size: 13px; min-width: 32px; color: var(--muted); }
   .cultura-table td.row-label { font-weight: 600; padding: 6px 12px 6px 0; white-space: nowrap; position: sticky; left: 0; background: var(--card); z-index: 1; }
   .cultura-table td.row-total { font-weight: 700; text-align: center; padding: 6px 4px; min-width: 32px; color: var(--accent); }
   .cultura-table tr.total-row td { border-top: 2px solid var(--border); font-weight: 700; color: var(--accent); }
@@ -317,7 +317,7 @@
     <div class="card-title">Histórico de Sincronizações</div>
     <table>
       <thead>
-        <tr><th>Data/Hora</th><th>Status</th><th>Posições Abertas</th><th>Headcount</th><th>SLA Médio</th><th>CFO Atualizado</th><th>Erros</th></tr>
+        <tr><th>Data/Hora</th><th>Status</th><th>Posições Abertas</th><th>Acima SLA</th><th>SLA Médio</th><th>Headcount</th><th>HC Ativos</th><th>HC Férias</th><th>Banco Talentos</th><th>% Aceitos</th><th>Adm Aberto</th><th>Adm Concluídas</th><th>Adm Canceladas</th><th>Erros</th></tr>
       </thead>
       <tbody id="tbHistorico"></tbody>
     </table>
@@ -385,7 +385,7 @@ function renderEntTable(mode) {
     cols.forEach(c => {
       const v = data[c][r];
       rowTotal += v;
-      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">0</td>`;
     });
     html += `<td class="row-total">${rowTotal}</td></tr>`;
   });
@@ -513,7 +513,27 @@ function renderCultTable(mode) {
   let cols, data;
 
   if (mode === 'dia') {
-    cols = desDates;
+    // Preenche todos os dias úteis (seg-sex) entre primeiro e último registro
+    if (desDates.length > 0) {
+      const allWeekdays = [];
+      const [sy,sm,sd] = desDates[0].split('-').map(Number);
+      const [ey,em,ed] = desDates[desDates.length - 1].split('-').map(Number);
+      const dStart = new Date(sy, sm-1, sd);
+      // Limita ao dia de ontem — hoje ainda não encerrou
+      const yesterday = new Date(KPI_DATA.todayISO.split('-').map(Number).reduce((_,v,i,a) => new Date(a[0],a[1]-1,a[2]),0));
+      yesterday.setDate(yesterday.getDate() - 1);
+      const dEnd = yesterday;
+      for (let d = new Date(dStart); d <= dEnd; d.setDate(d.getDate() + 1)) {
+        const dow = d.getDay();
+        if (dow !== 0 && dow !== 6) {
+          const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+          allWeekdays.push(iso);
+        }
+      }
+      cols = allWeekdays;
+    } else {
+      cols = desDates;
+    }
     data = desData;
   } else if (mode === 'mes') {
     const r = aggDes(getMonthKey);
@@ -547,7 +567,7 @@ function renderCultTable(mode) {
     cols.forEach(c => {
       const v = data[c] ? data[c][key] : 0;
       rowTotal += v;
-      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">0</td>`;
     });
     html += `<td class="row-total">${rowTotal}</td></tr>`;
   });
@@ -731,7 +751,7 @@ function renderDpTable(mode) {
     cols.forEach(c => {
       const v = data[c] ? data[c][key] : 0;
       rowTotal += v;
-      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+      html += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">0</td>`;
     });
     if (key === 'aberto') {
       // For em aberto, show last value instead of sum
@@ -1013,7 +1033,7 @@ function reRenderWithPeriod(period) {
     entCols.forEach(c => {
       const v = entData[c] ? entData[c][r] : 0;
       rowTotal += v;
-      entHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+      entHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">0</td>`;
     });
     entHtml += `<td class="row-total">${rowTotal}</td></tr>`;
   });
@@ -1070,9 +1090,26 @@ function reRenderWithPeriod(period) {
 
   // --- Desligamentos: filter raw and re-render ---
   const filteredDes = filterRawData(desRaw, 0, start, end);
-  const filtDesDates = filteredDes.map(r => r[0]);
   const filtDesData = {};
   filteredDes.forEach(([d,t,f,v]) => { filtDesData[d] = {total:t, forcados:f, voluntarios:v}; });
+
+  // Preenche todos os dias úteis no range filtrado
+  let filtDesDates = [];
+  if (filteredDes.length > 0) {
+    const dStart = start ? new Date(start) : new Date(filteredDes[0][0].split('-').map(Number).reduce((_, v, i, a) => new Date(a[0], a[1]-1, a[2])));
+    const dEndRaw = end ? new Date(end) : new Date(filteredDes[filteredDes.length - 1][0].split('-').map(Number).reduce((_, v, i, a) => new Date(a[0], a[1]-1, a[2])));
+    // Limita ao dia de ontem
+    const filtYesterday = new Date(KPI_DATA.todayISO.split('-').map(Number).reduce((_,v,i,a) => new Date(a[0],a[1]-1,a[2]),0));
+    filtYesterday.setDate(filtYesterday.getDate() - 1);
+    const dEnd = filtYesterday;
+    for (let d = new Date(dStart); d <= dEnd; d.setDate(d.getDate() + 1)) {
+      const dow = d.getDay();
+      if (dow !== 0 && dow !== 6) {
+        const iso = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+        filtDesDates.push(iso);
+      }
+    }
+  }
 
   // Re-render cultura table
   const cultActiveBtn = document.querySelector('.cult-filter.active');
@@ -1092,7 +1129,7 @@ function reRenderWithPeriod(period) {
     filtDesDates.forEach(c => {
       const v = filtDesData[c] ? filtDesData[c][key] : 0;
       rowTotal += v;
-      cultHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+      cultHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">0</td>`;
     });
     cultHtml += `<td class="row-total">${rowTotal}</td></tr>`;
   });
@@ -1152,7 +1189,7 @@ function reRenderWithPeriod(period) {
     filtSupAllDates.forEach(c => {
       const v = filtSupData[c] ? filtSupData[c][key] : 0;
       rowTotal += v;
-      dpHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">-</td>`;
+      dpHtml += v > 0 ? `<td class="val">${v}</td>` : `<td class="val-zero">0</td>`;
     });
     if (key === 'aberto') {
       const lastVal = filtSupData[filtSupAllDates[filtSupAllDates.length-1]] ? filtSupData[filtSupAllDates[filtSupAllDates.length-1]][key] : 0;
@@ -1274,19 +1311,24 @@ function renderHistorico() {
     const statusBadge = h.status === 'success'
       ? '<span class="badge badge-green">Sucesso</span>'
       : '<span class="badge badge-red">Erro</span>';
-    const cfoBadge = h.cfo_atualizado === true
-      ? '<span class="badge badge-green">Sim</span>'
-      : h.cfo_atualizado === false
-        ? '<span class="badge badge-yellow">Pendente</span>'
-        : '<span class="badge badge-muted">-</span>';
     const erros = h.erros ? `<span class="badge badge-red">${h.erros}</span>` : '<span class="badge badge-green">0</span>';
+    const fmt = v => v != null ? v : '-';
+    const fmtDec = v => v != null ? v.toFixed(1).replace('.',',') : '-';
+    const fmtPct = v => v != null ? v.toFixed(1).replace('.',',') + '%' : '-';
     return `<tr>
       <td>${h.data_hora || '-'}</td>
       <td>${statusBadge}</td>
-      <td>${h.posicoes_abertas ?? '-'}</td>
-      <td>${h.headcount ?? '-'}</td>
-      <td>${h.sla_medio != null ? h.sla_medio.toFixed(1).replace('.',',') : '-'}</td>
-      <td>${cfoBadge}</td>
+      <td>${fmt(h.posicoes_abertas)}</td>
+      <td>${fmt(h.acima_sla)}</td>
+      <td>${fmtDec(h.sla_medio)}</td>
+      <td>${fmt(h.headcount)}</td>
+      <td>${fmt(h.hc_ativos)}</td>
+      <td>${fmt(h.hc_ferias)}</td>
+      <td>${fmt(h.banco_talentos)}</td>
+      <td>${fmtPct(h.pct_aceitos)}</td>
+      <td>${fmt(h.adm_aberto)}</td>
+      <td>${fmt(h.adm_concluidas)}</td>
+      <td>${fmt(h.adm_canceladas)}</td>
       <td>${erros}</td>
     </tr>`;
   }).join('');
