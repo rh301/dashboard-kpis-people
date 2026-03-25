@@ -21,6 +21,21 @@ from datetime import date, datetime, timezone, timedelta
 # Timezone BRT (UTC-3) — garante data correta quando roda no GitHub Actions (UTC)
 BRT = timezone(timedelta(hours=-3))
 
+
+def data_referencia_brt() -> date:
+    """Retorna a data BRT de referencia para o sync.
+
+    O cron roda as 22h BRT (01:00 UTC), mas o GitHub Actions pode atrasar
+    ate ~05:00 UTC (02:00 BRT do dia seguinte). Nesse caso, a data de
+    referencia deve ser o dia anterior (o dia que acabou as 22h).
+
+    Regra: se o horario BRT for entre 00:00 e 06:00, usa ontem.
+    """
+    agora_brt = datetime.now(BRT)
+    if agora_brt.hour < 6:
+        return (agora_brt - timedelta(days=1)).date()
+    return agora_brt.date()
+
 import requests
 
 # ============================================================
@@ -401,7 +416,7 @@ def mes_label(iso: str) -> str:
 
 def transformar(dados: dict) -> dict:
     """Transforma dados brutos no formato que o dashboard espera."""
-    hoje = datetime.now(BRT).date().isoformat()
+    hoje = data_referencia_brt().isoformat()
 
     # --- Entrevistas: tuples [date, recruiter, count] ---
     entrevistas_raw = []
@@ -714,7 +729,7 @@ def update_google_sheets(transformado: dict):
     sh = gc.open_by_key(GSHEETS_SPREADSHEET_ID)
     ws = sh.worksheet(GSHEETS_TAB_NAME)
 
-    hoje = datetime.now(BRT).date()
+    hoje = data_referencia_brt()
     hoje_str = hoje.strftime("%d/%m/%Y")
     hoje_iso = hoje.isoformat()
     resumo = transformado["resumo"]
