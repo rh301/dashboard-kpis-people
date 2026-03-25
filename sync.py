@@ -231,6 +231,13 @@ SELECT
 FROM "nekt_trusted"."convenia_employees"
 """
 
+# --- DP: Suportes People (em aberto — snapshot) ---
+SQL_SUP_ABERTOS = """
+SELECT COUNT(*) AS em_aberto
+FROM "nekt_silver"."silver_pipefy_suporte_people"
+WHERE current_phase_name NOT IN ('Concluído', 'Cancelado')
+"""
+
 # --- DP: Suportes People (novos por dia) ---
 SQL_SUP_NOVOS = """
 SELECT
@@ -381,6 +388,7 @@ def coletar_dados() -> dict:
         "headcount": SQL_HEADCOUNT,
         "sup_novos": SQL_SUP_NOVOS,
         "sup_fin": SQL_SUP_FIN,
+        "sup_abertos": SQL_SUP_ABERTOS,
         "admissoes": SQL_ADMISSOES,
         "pos_abertas": SQL_POS_ABERTAS,
         "acima_sla": SQL_ACIMA_SLA,
@@ -466,6 +474,7 @@ def transformar(dados: dict) -> dict:
     # --- Suportes: tuples [date, count] ---
     sup_novos_raw = [[r["data"][:10], int(r["novos"])] for r in dados["sup_novos"]]
     sup_fin_raw = [[r["data"][:10], int(r["finalizados"])] for r in dados["sup_fin"]]
+    sup_abertos = int(dados["sup_abertos"][0]["em_aberto"]) if dados["sup_abertos"] else 0
 
     # --- Headcount ---
     hc = dados["headcount"][0] if dados["headcount"] else {}
@@ -583,6 +592,7 @@ def transformar(dados: dict) -> dict:
             "vagasSZS": vagas_emp.get("Seazone Serviços", 0),
             "vagasSZI": vagas_emp.get("Seazone Investimentos", 0),
             "vagasGO": vagas_emp.get("Seazone Gestao de Obras", 0) or vagas_emp.get("Seazone Gestão de Obras", 0) or vagas_emp.get("SZN Gestão de Obras", 0) or vagas_emp.get("SZN Gestao de Obras", 0),
+            "supAbertos": sup_abertos,
             "admTotal": adm_total,
             "admAberto": adm_aberto,
             "admConcluidas": adm_concluidas,
@@ -774,6 +784,7 @@ def update_google_sheets(transformado: dict):
         25: ent_julia,                              # Entrevistas Julia
         26: str(resumo["pctAceitosFinal"]).replace(".", ",") + "%",
         34: sup_novos,                              # Suportes Novos
+        35: resumo["supAbertos"],                   # Suportes em Aberto
         36: sup_fin,                                # Suportes Finalizados
         37: resumo["admAberto"],                    # Admissoes em aberto
         43: deslig_total,                           # Desligamentos Total
@@ -835,6 +846,7 @@ if __name__ == "__main__":
         "headcount": SQL_HEADCOUNT,
         "sup_novos": SQL_SUP_NOVOS,
         "sup_fin": SQL_SUP_FIN,
+        "sup_abertos": SQL_SUP_ABERTOS,
         "admissoes": SQL_ADMISSOES,
         "pos_abertas": SQL_POS_ABERTAS,
         "acima_sla": SQL_ACIMA_SLA,
