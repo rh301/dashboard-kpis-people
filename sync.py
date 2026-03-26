@@ -959,9 +959,9 @@ def update_google_sheets(transformado: dict):
         medalhas_dia = sum_date(transformado["medalhas_raw"], hoje_iso)
 
         def fmt_nota(v):
-            """Formata nota para a planilha (virgula decimal) ou '-' se None."""
+            """Formata nota para a planilha (virgula decimal) ou 0 se None."""
             if v is None:
-                return "-"
+                return 0
             return str(v).replace(".", ",")
 
         values_map = {
