@@ -815,57 +815,66 @@ def update_google_sheets(transformado: dict):
     hoje = data_referencia_brt()
     hoje_str = hoje.strftime("%d/%m/%Y")
     hoje_iso = hoje.isoformat()
+    is_weekend = hoje.weekday() >= 5  # 5=Sab, 6=Dom
     resumo = transformado["resumo"]
 
-    # --- Valores diarios das series temporais ---
-    def sum_date(raw, dt):
-        return sum(r[-1] for r in raw if r[0] == dt)
+    # Fim de semana: gravar apenas data e "-" nas linhas de dados
+    if is_weekend:
+        DATA_ROWS = [5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                     22, 23, 24, 25, 26, 34, 35, 36, 37, 43, 44, 45, 46]
+        values_map = {1: hoje_str}
+        for r in DATA_ROWS:
+            values_map[r] = "-"
+        print(f"[sheets] Fim de semana ({hoje_str}) — preenchendo com '-'")
+    else:
+        # --- Valores diarios das series temporais ---
+        def sum_date(raw, dt):
+            return sum(r[-1] for r in raw if r[0] == dt)
 
-    def sum_date_rec(raw, dt, rec):
-        return sum(r[2] for r in raw if r[0] == dt and r[1] == rec)
+        def sum_date_rec(raw, dt, rec):
+            return sum(r[2] for r in raw if r[0] == dt and r[1] == rec)
 
-    ent_total = sum_date(transformado["entrevistas_raw"], hoje_iso)
-    ent_clara = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Clara")
-    ent_jonas = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Jonas")
-    ent_julia = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Júlia")
+        ent_total = sum_date(transformado["entrevistas_raw"], hoje_iso)
+        ent_clara = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Clara")
+        ent_jonas = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Jonas")
+        ent_julia = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Júlia")
 
-    deslig = [r for r in transformado["deslig_raw"] if r[0] == hoje_iso]
-    deslig_total = sum(r[1] for r in deslig)
-    deslig_forc = sum(r[2] for r in deslig)
-    deslig_vol = sum(r[3] for r in deslig)
+        deslig = [r for r in transformado["deslig_raw"] if r[0] == hoje_iso]
+        deslig_total = sum(r[1] for r in deslig)
+        deslig_forc = sum(r[2] for r in deslig)
+        deslig_vol = sum(r[3] for r in deslig)
 
-    sup_novos = sum_date(transformado["sup_novos_raw"], hoje_iso)
-    sup_fin = sum_date(transformado["sup_fin_raw"], hoje_iso)
-    medalhas_dia = sum_date(transformado["medalhas_raw"], hoje_iso)
+        sup_novos = sum_date(transformado["sup_novos_raw"], hoje_iso)
+        sup_fin = sum_date(transformado["sup_fin_raw"], hoje_iso)
+        medalhas_dia = sum_date(transformado["medalhas_raw"], hoje_iso)
 
-    # --- Mapeamento: linha (0-indexed) -> valor ---
-    values_map = {
-        1: hoje_str,                                # Data
-        5: resumo["bancotalentos"],                 # Banco de Talentos
-        8: resumo["posAbertas"],                    # Posicoes Abertas Total
-        9: resumo["clara"]["posAbertas"],           # Posicoes Abertas Clara
-        10: resumo["jonas"]["posAbertas"],          # Posicoes Abertas Jonas
-        11: resumo["julia"]["posAbertas"],          # Posicoes Abertas Julia
-        12: resumo["posAcimaSla"],                  # Acima SLA Total
-        13: resumo["clara"]["acimaSla"],            # Acima SLA Clara
-        14: resumo["jonas"]["acimaSla"],            # Acima SLA Jonas
-        15: resumo["julia"]["acimaSla"],            # Acima SLA Julia
-        16: resumo["vagasSZS"],                     # Vagas SZS
-        17: resumo["vagasSZI"],                     # Vagas SZI
-        22: ent_total,                              # Entrevistas Total
-        23: ent_clara,                              # Entrevistas Clara
-        24: ent_jonas,                              # Entrevistas Jonas
-        25: ent_julia,                              # Entrevistas Julia
-        26: str(resumo["pctAceitosFinal"]).replace(".", ",") + "%",
-        34: sup_novos,                              # Suportes Novos
-        35: resumo["supAbertos"],                   # Suportes em Aberto
-        36: sup_fin,                                # Suportes Finalizados
-        37: resumo["admAberto"],                    # Admissoes em aberto
-        43: deslig_total,                           # Desligamentos Total
-        44: deslig_forc,                            # Desligamentos Forcados
-        45: deslig_vol,                             # Desligamentos Voluntarios
-        46: medalhas_dia,                             # Medalhas Validadas
-    }
+        values_map = {
+            1: hoje_str,                                # Data
+            5: resumo["bancotalentos"],                 # Banco de Talentos
+            8: resumo["posAbertas"],                    # Posicoes Abertas Total
+            9: resumo["clara"]["posAbertas"],           # Posicoes Abertas Clara
+            10: resumo["jonas"]["posAbertas"],          # Posicoes Abertas Jonas
+            11: resumo["julia"]["posAbertas"],          # Posicoes Abertas Julia
+            12: resumo["posAcimaSla"],                  # Acima SLA Total
+            13: resumo["clara"]["acimaSla"],            # Acima SLA Clara
+            14: resumo["jonas"]["acimaSla"],            # Acima SLA Jonas
+            15: resumo["julia"]["acimaSla"],            # Acima SLA Julia
+            16: resumo["vagasSZS"],                     # Vagas SZS
+            17: resumo["vagasSZI"],                     # Vagas SZI
+            22: ent_total,                              # Entrevistas Total
+            23: ent_clara,                              # Entrevistas Clara
+            24: ent_jonas,                              # Entrevistas Jonas
+            25: ent_julia,                              # Entrevistas Julia
+            26: str(resumo["pctAceitosFinal"]).replace(".", ",") + "%",
+            34: sup_novos,                              # Suportes Novos
+            35: resumo["supAbertos"],                   # Suportes em Aberto
+            36: sup_fin,                                # Suportes Finalizados
+            37: resumo["admAberto"],                    # Admissoes em aberto
+            43: deslig_total,                           # Desligamentos Total
+            44: deslig_forc,                            # Desligamentos Forcados
+            45: deslig_vol,                             # Desligamentos Voluntarios
+            46: medalhas_dia,                           # Medalhas Validadas
+        }
 
     # --- Encontrar coluna destino ---
     all_vals = ws.get_all_values()
