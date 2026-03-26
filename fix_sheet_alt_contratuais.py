@@ -29,7 +29,8 @@ def nekt_query(sql):
     resp = requests.post(NEKT_API_URL, json={"sql_query": sql},
                          headers={"x-api-key": NEKT_API_KEY, "Content-Type": "application/json"},
                          timeout=60)
-    resp.raise_for_status()
+    if resp.status_code != 200:
+        raise Exception(f"{resp.status_code} {resp.reason}: {resp.text[:300]}")
     body = resp.json()
     if body.get("status") == "failed":
         raise Exception(body.get("error", "Query failed"))
