@@ -27,7 +27,8 @@ ROW_ALT_CONTRATUAIS = 38  # 0-indexed
 
 def nekt_query(sql):
     resp = requests.post(NEKT_API_URL, json={"sql_query": sql},
-                         headers={"x-api-key": NEKT_API_KEY}, timeout=60)
+                         headers={"x-api-key": NEKT_API_KEY, "Content-Type": "application/json"},
+                         timeout=60)
     resp.raise_for_status()
     body = resp.json()
     if body.get("status") == "failed":
@@ -76,34 +77,48 @@ print(f"Dias uteis na planilha: {[d.strftime('%d/%m') for d in date_list]}")
 
 # --- Primeiro, ver a estrutura do pipe ---
 print("\nExplorando pipe 305643176...")
-try:
-    # Tentar tabela nekt_trusted
-    rows = nekt_query("""
-        SELECT currentphasename, COUNT(*) AS total
-        FROM "nekt_trusted"."migracao_de_contratos_all_cards_305643176"
-        GROUP BY currentphasename
-        ORDER BY total DESC
-    """)
-    print("Tabela: nekt_trusted.migracao_de_contratos_all_cards_305643176")
-    for r in rows:
-        print(f"  {r['currentphasename']}: {r['total']}")
-    TABLE = '"nekt_trusted"."migracao_de_contratos_all_cards_305643176"'
-except Exception as e:
-    print(f"  nekt_trusted falhou: {e}")
+
+TABLES_TO_TRY = [
+    '"nekt_trusted"."migracao_de_contratos_all_cards_305643176"',
+    '"nekt_service"."pipefy_migracao_de_contratosall_cards_305643176"',
+    '"nekt_trusted"."pipefy_migracao_de_contratosall_cards_305643176"',
+    '"nekt_silver"."migracao_de_contratos_all_cards_305643176"',
+    '"nekt_service"."pipefy_all_cards_305643176"',
+]
+
+TABLE = None
+rows = None
+for t in TABLES_TO_TRY:
     try:
-        rows = nekt_query("""
+        print(f"  Tentando {t}...")
+        rows = nekt_query(f"""
             SELECT currentphasename, COUNT(*) AS total
-            FROM "nekt_service"."pipefy_migracao_de_contratosall_cards_305643176"
+            FROM {t}
             GROUP BY currentphasename
             ORDER BY total DESC
         """)
-        print("Tabela: nekt_service.pipefy_migracao_de_contratosall_cards_305643176")
+        TABLE = t
+        print(f"  ENCONTRADO: {t}")
         for r in rows:
-            print(f"  {r['currentphasename']}: {r['total']}")
-        TABLE = '"nekt_service"."pipefy_migracao_de_contratosall_cards_305643176"'
-    except Exception as e2:
-        print(f"  nekt_service tambem falhou: {e2}")
-        sys.exit(1)
+            print(f"    {r['currentphasename']}: {r['total']}")
+        break
+    except Exception as e:
+        print(f"    Falhou: {e}")
+
+if TABLE is None:
+    # Listar tabelas que contem 305643176
+    print("\nBuscando tabelas com 305643176...")
+    try:
+        result = nekt_query("""
+            SELECT table_schema, table_name
+            FROM information_schema.tables
+            WHERE table_name LIKE '%305643176%'
+        """)
+        for r in result:
+            print(f"  {r['table_schema']}.{r['table_name']}")
+    except Exception as e:
+        print(f"  Erro ao listar: {e}")
+    sys.exit(1)
 
 # Identificar fases finais
 FASES_FINAIS = []
