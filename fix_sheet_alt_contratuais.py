@@ -26,16 +26,26 @@ ROW_ALT_CONTRATUAIS = 38  # 0-indexed
 
 
 def nekt_query(sql):
-    resp = requests.post(NEKT_API_URL, json={"sql_query": sql},
+    import csv as _csv
+    resp = requests.post(NEKT_API_URL, json={"sql": sql, "mode": "csv"},
                          headers={"x-api-key": NEKT_API_KEY, "Content-Type": "application/json"},
-                         timeout=60)
+                         timeout=120)
     if resp.status_code != 200:
         raise Exception(f"{resp.status_code} {resp.reason}: {resp.text[:300]}")
     body = resp.json()
-    if body.get("status") == "failed":
-        raise Exception(body.get("error", "Query failed"))
-    cols = body["columns"]
-    return [dict(zip(cols, row)) for row in body["data"]]
+    if body.get("state") != "SUCCEEDED":
+        raise Exception(f"Query failed: {body}")
+    urls = body.get("presigned_urls", [])
+    if not urls:
+        return []
+    rows = []
+    for url in urls:
+        csv_resp = requests.get(url, timeout=60)
+        csv_resp.raise_for_status()
+        import io as _io
+        reader = _csv.DictReader(_io.StringIO(csv_resp.text))
+        rows.extend(list(reader))
+    return rows
 
 
 # --- Conectar planilha ---
