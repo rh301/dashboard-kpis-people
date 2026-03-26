@@ -57,6 +57,13 @@ MEDALHAS_SHEET_ID = "1tolIf1eKRMLyYIWwWjB8D3-82YkK1uOPOGmlZXzDfNs"
 MEDALHAS_GID = "647381004"
 MEDALHAS_CSV_URL = f"https://docs.google.com/spreadsheets/d/{MEDALHAS_SHEET_ID}/export?format=csv&gid={MEDALHAS_GID}"
 
+# Onboarding — Google Sheets publico (CSV export)
+ONBOARDING_SHEET_ID = "1LOWQgyojuHK2HgUmkcXcOBeGV1fhBTd9YoG429ZzoPo"
+ONBOARDING_7D_GID = "973293318"
+ONBOARDING_30D_GID = "783342775"
+ONBOARDING_7D_CSV_URL = f"https://docs.google.com/spreadsheets/d/{ONBOARDING_SHEET_ID}/export?format=csv&gid={ONBOARDING_7D_GID}"
+ONBOARDING_30D_CSV_URL = f"https://docs.google.com/spreadsheets/d/{ONBOARDING_SHEET_ID}/export?format=csv&gid={ONBOARDING_30D_GID}"
+
 # Etapas de entrevista
 ETAPAS_ENTREVISTA = (
     "Entrevista de Fit Cultural",
@@ -468,6 +475,99 @@ def fetch_medalhas() -> list[dict]:
         return []
 
 
+def fetch_onboarding() -> dict:
+    """Busca notas de onboarding 7d e 30d do Google Sheets publico.
+    Retorna medias e % resposta do mes vigente (BRT)."""
+    hoje = data_referencia_brt()
+    mes_atual = hoje.month
+    ano_atual = hoje.year
+
+    def parse_csv(url):
+        resp = requests.get(url, timeout=30, allow_redirects=True)
+        resp.raise_for_status()
+        return list(csv.reader(io.StringIO(resp.text)))
+
+    def is_mes_vigente(ts_str):
+        """Checa se o timestamp dd/mm/yyyy HH:MM:SS e do mes vigente."""
+        try:
+            if "/" in ts_str:
+                parts = ts_str.split(" ")[0].split("/")
+                m, y = int(parts[1]), int(parts[2])
+                return m == mes_atual and y == ano_atual
+        except (ValueError, IndexError):
+            pass
+        return False
+
+    result = {
+        "onb7d_people": None, "onb7d_area": None, "onb7d_pct": None,
+        "onb30d_people": None, "onb30d_area": None, "onb30d_pct": None,
+    }
+
+    # --- 7 dias ---
+    try:
+        print("[sync] onboarding 7d (Google Sheets CSV)...")
+        rows7 = parse_csv(ONBOARDING_7D_CSV_URL)
+        # Col 12 = nota People, Col 13 = nota Area
+        notas_people, notas_area = [], []
+        total_respostas = 0
+        for row in rows7[1:]:
+            if not row[0].strip():
+                continue
+            if is_mes_vigente(row[0]):
+                total_respostas += 1
+                try:
+                    notas_people.append(float(row[12]))
+                except (ValueError, IndexError):
+                    pass
+                try:
+                    notas_area.append(float(row[13]))
+                except (ValueError, IndexError):
+                    pass
+        if notas_people:
+            result["onb7d_people"] = round(sum(notas_people) / len(notas_people), 2)
+        if notas_area:
+            result["onb7d_area"] = round(sum(notas_area) / len(notas_area), 2)
+        # % resposta: respostas do mes / admissoes do mes (aproximado, usa total como base)
+        result["onb7d_respostas"] = total_respostas
+        print(f"[sync]   7d: {total_respostas} respostas, people={result['onb7d_people']}, area={result['onb7d_area']}")
+    except Exception as e:
+        print(f"[sync] ERRO onboarding 7d: {e}")
+
+    # --- 30 dias ---
+    try:
+        print("[sync] onboarding 30d (Google Sheets CSV)...")
+        rows30 = parse_csv(ONBOARDING_30D_CSV_URL)
+        # Col 2 = tipo (Novo Seazoner / Lider), Col 33 = nota geral (Seazoner), Col 61 = nota geral (Lider)
+        notas_seazoner, notas_lider = [], []
+        total_respostas_30 = 0
+        for row in rows30[1:]:
+            if not row[0].strip():
+                continue
+            if is_mes_vigente(row[0]):
+                total_respostas_30 += 1
+                tipo = row[2] if len(row) > 2 else ""
+                if "Novo Seazoner" in tipo:
+                    try:
+                        notas_seazoner.append(float(row[33]))
+                    except (ValueError, IndexError):
+                        pass
+                elif "der" in tipo.lower():  # Lider
+                    try:
+                        notas_lider.append(float(row[61]))
+                    except (ValueError, IndexError):
+                        pass
+        if notas_seazoner:
+            result["onb30d_people"] = round(sum(notas_seazoner) / len(notas_seazoner), 2)
+        if notas_lider:
+            result["onb30d_area"] = round(sum(notas_lider) / len(notas_lider), 2)
+        result["onb30d_respostas"] = total_respostas_30
+        print(f"[sync]   30d: {total_respostas_30} respostas, people={result['onb30d_people']}, area={result['onb30d_area']}")
+    except Exception as e:
+        print(f"[sync] ERRO onboarding 30d: {e}")
+
+    return result
+
+
 # ============================================================
 # TRANSFORMACAO
 # ============================================================
@@ -546,6 +646,9 @@ def transformar(dados: dict) -> dict:
     for dt in sorted(medalhas_por_dia):
         medalhas_raw.append([dt, medalhas_por_dia[dt]])
     medalhas_total = sum(v for v in medalhas_por_dia.values())
+
+    # --- Onboarding ---
+    onb = dados.get("onboarding", {})
 
     # --- Headcount ---
     hc = dados["headcount"][0] if dados["headcount"] else {}
@@ -670,6 +773,12 @@ def transformar(dados: dict) -> dict:
             "admConcluidas": adm_concluidas,
             "admCanceladas": adm_canceladas,
             "medalhasTotal": medalhas_total,
+            "onb7dPeople": onb.get("onb7d_people"),
+            "onb7dArea": onb.get("onb7d_area"),
+            "onb7dRespostas": onb.get("onb7d_respostas", 0),
+            "onb30dPeople": onb.get("onb30d_people"),
+            "onb30dArea": onb.get("onb30d_area"),
+            "onb30dRespostas": onb.get("onb30d_respostas", 0),
             "clara": {"posAbertas": pos_por_rec.get("Clara", 0), "acimaSla": sla_por_rec.get("Clara", 0), "vagas": vagas_por_rec.get("Clara", 0)},
             "jonas": {"posAbertas": pos_por_rec.get("Jonas", 0), "acimaSla": sla_por_rec.get("Jonas", 0), "vagas": vagas_por_rec.get("Jonas", 0)},
             "julia": {"posAbertas": pos_por_rec.get("Júlia", 0), "acimaSla": sla_por_rec.get("Júlia", 0), "vagas": vagas_por_rec.get("Júlia", 0)},
@@ -821,7 +930,8 @@ def update_google_sheets(transformado: dict):
     # Fim de semana: gravar apenas data e "-" nas linhas de dados
     if is_weekend:
         DATA_ROWS = [5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-                     22, 23, 24, 25, 26, 34, 35, 36, 37, 43, 44, 45, 46]
+                     22, 23, 24, 25, 26, 34, 35, 36, 37, 43, 44, 45, 46,
+                     47, 48, 49, 50, 51, 52]
         values_map = {1: hoje_str}
         for r in DATA_ROWS:
             values_map[r] = "-"
@@ -847,6 +957,12 @@ def update_google_sheets(transformado: dict):
         sup_novos = sum_date(transformado["sup_novos_raw"], hoje_iso)
         sup_fin = sum_date(transformado["sup_fin_raw"], hoje_iso)
         medalhas_dia = sum_date(transformado["medalhas_raw"], hoje_iso)
+
+        def fmt_nota(v):
+            """Formata nota para a planilha (virgula decimal) ou '-' se None."""
+            if v is None:
+                return "-"
+            return str(v).replace(".", ",")
 
         values_map = {
             1: hoje_str,                                # Data
@@ -874,6 +990,12 @@ def update_google_sheets(transformado: dict):
             44: deslig_forc,                            # Desligamentos Forcados
             45: deslig_vol,                             # Desligamentos Voluntarios
             46: medalhas_dia,                           # Medalhas Validadas
+            47: fmt_nota(resumo["onb7dPeople"]),        # Onb 7d People
+            48: fmt_nota(resumo["onb7dArea"]),          # Onb 7d Area
+            49: resumo["onb7dRespostas"],               # Respostas 7d
+            50: fmt_nota(resumo["onb30dPeople"]),       # Onb 30d People
+            51: fmt_nota(resumo["onb30dArea"]),         # Onb 30d Area
+            52: resumo["onb30dRespostas"],              # Respostas 30d
         }
 
     # --- Encontrar coluna destino ---
@@ -959,6 +1081,14 @@ if __name__ == "__main__":
         print(f"[ERRO] Medalhas falhou: {e}", file=sys.stderr)
         dados["medalhas"] = []
         errors.append({"query": "medalhas", "error": str(e)})
+
+    # Onboarding vem do Google Sheets, nao do Nekt
+    try:
+        dados["onboarding"] = fetch_onboarding()
+    except Exception as e:
+        print(f"[ERRO] Onboarding falhou: {e}", file=sys.stderr)
+        dados["onboarding"] = {}
+        errors.append({"query": "onboarding", "error": str(e)})
 
     transformado = transformar(dados)
 
