@@ -118,5 +118,22 @@
     "cfo_atualizado": false,
     "erros": 0,
     "erros_detalhe": []
+  },
+  {
+    "data_hora": "26/03/2026 03:03",
+    "status": "success",
+    "posicoes_abertas": 4,
+    "acima_sla": 1,
+    "sla_medio": 32.39,
+    "headcount": 348,
+    "hc_ativos": 336,
+    "hc_ferias": 12,
+    "banco_talentos": 3878,
+    "pct_aceitos": 14.29,
+    "adm_aberto": 8,
+    "adm_concluidas": 568,
+    "adm_canceladas": 38,
+    "erros": 0,
+    "erros_detalhe": []
   }
 ]
