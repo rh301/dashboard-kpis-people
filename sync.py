@@ -278,7 +278,8 @@ ORDER BY 1
 SQL_ALT_CONTRATUAIS = """
 SELECT COUNT(*) AS em_aberto
 FROM "nekt_trusted"."migracao_de_contratos_all_cards_305643176"
-WHERE currentphasename NOT IN ('Concluído', 'Cancelado', 'Concluido')
+WHERE current_phase NOT LIKE '%cancelad%'
+  AND (finished_at IS NULL OR CAST(finished_at AS VARCHAR) = '')
 """
 
 # --- DP: Admissoes (status) ---
