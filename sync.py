@@ -52,6 +52,11 @@ GSHEETS_CREDS_JSON = os.environ.get("GSHEETS_CREDS_JSON", "")
 GSHEETS_SPREADSHEET_ID = "1LbFqZEWsj8edh8O0Q7fGpcam4rJH4a6Qp7qBtHvlpv0"
 GSHEETS_TAB_NAME = os.environ.get("GSHEETS_TAB_NAME", "teste KPI")
 
+# Medalhas — Google Sheets publico (CSV export)
+MEDALHAS_SHEET_ID = "1tolIf1eKRMLyYIWwWjB8D3-82YkK1uOPOGmlZXzDfNs"
+MEDALHAS_GID = "647381004"
+MEDALHAS_CSV_URL = f"https://docs.google.com/spreadsheets/d/{MEDALHAS_SHEET_ID}/export?format=csv&gid={MEDALHAS_GID}"
+
 # Etapas de entrevista
 ETAPAS_ENTREVISTA = (
     "Entrevista de Fit Cultural",
@@ -407,6 +412,62 @@ def coletar_dados() -> dict:
     return dados
 
 
+def fetch_medalhas() -> list[dict]:
+    """Busca medalhas validadas do Google Sheets publico (CSV).
+    Retorna lista de dicts com chaves: data, habilidade."""
+    print("[sync] medalhas (Google Sheets CSV)...")
+    try:
+        resp = requests.get(MEDALHAS_CSV_URL, timeout=30, allow_redirects=True)
+        resp.raise_for_status()
+        reader = csv.reader(io.StringIO(resp.text))
+        header = next(reader)
+        # Encontrar indices das colunas
+        col_data = None
+        col_status = None
+        col_habilidade = None
+        for i, h in enumerate(header):
+            hl = h.strip().lower()
+            if hl == "data":
+                col_data = i
+            elif "aceito" in hl or "rejeitar" in hl:
+                col_status = i
+            elif "habilidade" in hl:
+                col_habilidade = i
+
+        if col_data is None or col_status is None:
+            print("[sync] AVISO: colunas de medalhas nao encontradas")
+            return []
+
+        medalhas = []
+        for row in reader:
+            if len(row) <= max(col_data, col_status):
+                continue
+            status = row[col_status].strip()
+            if status != "Aceitar":
+                continue
+            data_str = row[col_data].strip()
+            if not data_str:
+                continue
+            # Data pode vir como dd/mm/yyyy ou yyyy-mm-dd
+            try:
+                if "/" in data_str:
+                    dt = datetime.strptime(data_str, "%d/%m/%Y")
+                else:
+                    dt = datetime.strptime(data_str[:10], "%Y-%m-%d")
+                medalhas.append({
+                    "data": dt.strftime("%Y-%m-%d"),
+                    "habilidade": row[col_habilidade].strip() if col_habilidade is not None and col_habilidade < len(row) else "",
+                })
+            except ValueError:
+                continue
+
+        print(f"[sync]   {len(medalhas)} medalhas validadas")
+        return medalhas
+    except Exception as e:
+        print(f"[sync] ERRO ao buscar medalhas: {e}")
+        return []
+
+
 # ============================================================
 # TRANSFORMACAO
 # ============================================================
@@ -475,6 +536,16 @@ def transformar(dados: dict) -> dict:
     sup_novos_raw = [[r["data"][:10], int(r["novos"])] for r in dados["sup_novos"]]
     sup_fin_raw = [[r["data"][:10], int(r["finalizados"])] for r in dados["sup_fin"]]
     sup_abertos = int(dados["sup_abertos"][0]["em_aberto"]) if dados["sup_abertos"] else 0
+
+    # --- Medalhas: tuples [date, count] ---
+    medalhas_raw = []
+    medalhas_por_dia = {}
+    for m in dados.get("medalhas", []):
+        dt = m["data"]
+        medalhas_por_dia[dt] = medalhas_por_dia.get(dt, 0) + 1
+    for dt in sorted(medalhas_por_dia):
+        medalhas_raw.append([dt, medalhas_por_dia[dt]])
+    medalhas_total = sum(v for v in medalhas_por_dia.values())
 
     # --- Headcount ---
     hc = dados["headcount"][0] if dados["headcount"] else {}
@@ -575,6 +646,7 @@ def transformar(dados: dict) -> dict:
         "dept_vals": dept_vals,
         "sup_novos_raw": sup_novos_raw,
         "sup_fin_raw": sup_fin_raw,
+        "medalhas_raw": medalhas_raw,
         "vagas_detalhe": vagas_detalhe,
         "resumo": {
             "posAbertas": pos_total,
@@ -597,6 +669,7 @@ def transformar(dados: dict) -> dict:
             "admAberto": adm_aberto,
             "admConcluidas": adm_concluidas,
             "admCanceladas": adm_canceladas,
+            "medalhasTotal": medalhas_total,
             "clara": {"posAbertas": pos_por_rec.get("Clara", 0), "acimaSla": sla_por_rec.get("Clara", 0), "vagas": vagas_por_rec.get("Clara", 0)},
             "jonas": {"posAbertas": pos_por_rec.get("Jonas", 0), "acimaSla": sla_por_rec.get("Jonas", 0), "vagas": vagas_por_rec.get("Jonas", 0)},
             "julia": {"posAbertas": pos_por_rec.get("Júlia", 0), "acimaSla": sla_por_rec.get("Júlia", 0), "vagas": vagas_por_rec.get("Júlia", 0)},
@@ -763,6 +836,7 @@ def update_google_sheets(transformado: dict):
 
     sup_novos = sum_date(transformado["sup_novos_raw"], hoje_iso)
     sup_fin = sum_date(transformado["sup_fin_raw"], hoje_iso)
+    medalhas_dia = sum_date(transformado["medalhas_raw"], hoje_iso)
 
     # --- Mapeamento: linha (0-indexed) -> valor ---
     values_map = {
@@ -790,6 +864,7 @@ def update_google_sheets(transformado: dict):
         43: deslig_total,                           # Desligamentos Total
         44: deslig_forc,                            # Desligamentos Forcados
         45: deslig_vol,                             # Desligamentos Voluntarios
+        46: medalhas_dia,                             # Medalhas Validadas
     }
 
     # --- Encontrar coluna destino ---
@@ -867,6 +942,14 @@ if __name__ == "__main__":
             print(f"[ERRO] Query '{nome}' falhou: {e}", file=sys.stderr)
             dados[nome] = []
             errors.append({"query": nome, "error": str(e)})
+
+    # Medalhas vem do Google Sheets, nao do Nekt
+    try:
+        dados["medalhas"] = fetch_medalhas()
+    except Exception as e:
+        print(f"[ERRO] Medalhas falhou: {e}", file=sys.stderr)
+        dados["medalhas"] = []
+        errors.append({"query": "medalhas", "error": str(e)})
 
     transformado = transformar(dados)
 
