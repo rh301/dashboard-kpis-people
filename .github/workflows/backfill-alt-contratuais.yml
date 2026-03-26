@@ -1,0 +1,18 @@
+name: Backfill Alterações Contratuais
+on:
+  workflow_dispatch:
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests gspread google-auth
+      - name: Run backfill
+        env:
+          NEKT_API_KEY: ${{ secrets.NEKT_API_KEY }}
+          GSHEETS_CREDS_JSON: ${{ secrets.GSHEETS_CREDS_JSON }}
+        run: python fix_sheet_alt_contratuais.py --apply
