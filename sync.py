@@ -274,6 +274,13 @@ GROUP BY 1
 ORDER BY 1
 """
 
+# --- DP: Alteracoes Contratuais em aberto (snapshot) ---
+SQL_ALT_CONTRATUAIS = """
+SELECT COUNT(*) AS em_aberto
+FROM "nekt_trusted"."migracao_de_contratos_all_cards_305643176"
+WHERE currentphasename NOT IN ('Concluído', 'Cancelado', 'Concluido')
+"""
+
 # --- DP: Admissoes (status) ---
 SQL_ADMISSOES = """
 SELECT
@@ -401,6 +408,7 @@ def coletar_dados() -> dict:
         "sup_novos": SQL_SUP_NOVOS,
         "sup_fin": SQL_SUP_FIN,
         "sup_abertos": SQL_SUP_ABERTOS,
+        "alt_contratuais": SQL_ALT_CONTRATUAIS,
         "admissoes": SQL_ADMISSOES,
         "pos_abertas": SQL_POS_ABERTAS,
         "acima_sla": SQL_ACIMA_SLA,
@@ -637,6 +645,9 @@ def transformar(dados: dict) -> dict:
     sup_fin_raw = [[r["data"][:10], int(r["finalizados"])] for r in dados["sup_fin"]]
     sup_abertos = int(dados["sup_abertos"][0]["em_aberto"]) if dados["sup_abertos"] else 0
 
+    # --- Alteracoes Contratuais em aberto (snapshot) ---
+    alt_contratuais = int(dados["alt_contratuais"][0]["em_aberto"]) if dados.get("alt_contratuais") else 0
+
     # --- Medalhas: tuples [date, count] ---
     medalhas_raw = []
     medalhas_por_dia = {}
@@ -768,6 +779,7 @@ def transformar(dados: dict) -> dict:
             "vagasSZI": vagas_emp.get("Seazone Investimentos", 0),
             "vagasGO": vagas_emp.get("Seazone Gestao de Obras", 0) or vagas_emp.get("Seazone Gestão de Obras", 0) or vagas_emp.get("SZN Gestão de Obras", 0) or vagas_emp.get("SZN Gestao de Obras", 0),
             "supAbertos": sup_abertos,
+            "altContratuais": alt_contratuais,
             "admTotal": adm_total,
             "admAberto": adm_aberto,
             "admConcluidas": adm_concluidas,
@@ -930,7 +942,7 @@ def update_google_sheets(transformado: dict):
     # Fim de semana: gravar apenas data e "-" nas linhas de dados
     if is_weekend:
         DATA_ROWS = [5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
-                     22, 23, 24, 25, 26, 34, 35, 36, 37, 43, 44, 45, 46,
+                     22, 23, 24, 25, 26, 34, 35, 36, 37, 38, 43, 44, 45, 46,
                      47, 48, 49, 50, 51, 52]
         values_map = {1: hoje_str}
         for r in DATA_ROWS:
@@ -986,6 +998,7 @@ def update_google_sheets(transformado: dict):
             35: resumo["supAbertos"],                   # Suportes em Aberto
             36: sup_fin,                                # Suportes Finalizados
             37: resumo["admAberto"],                    # Admissoes em aberto
+            38: resumo["altContratuais"],               # Alteracoes Contratuais em aberto
             43: deslig_total,                           # Desligamentos Total
             44: deslig_forc,                            # Desligamentos Forcados
             45: deslig_vol,                             # Desligamentos Voluntarios
@@ -1053,6 +1066,7 @@ if __name__ == "__main__":
         "sup_novos": SQL_SUP_NOVOS,
         "sup_fin": SQL_SUP_FIN,
         "sup_abertos": SQL_SUP_ABERTOS,
+        "alt_contratuais": SQL_ALT_CONTRATUAIS,
         "admissoes": SQL_ADMISSOES,
         "pos_abertas": SQL_POS_ABERTAS,
         "acima_sla": SQL_ACIMA_SLA,
