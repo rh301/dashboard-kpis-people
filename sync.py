@@ -303,9 +303,9 @@ ORDER BY 1
 # --- DP: Alteracoes Contratuais em aberto (snapshot) ---
 SQL_ALT_CONTRATUAIS = """
 SELECT COUNT(*) AS em_aberto
-FROM "nekt_trusted"."migracao_de_contratos_all_cards_305643176"
-WHERE current_phase.name NOT LIKE '%cancelad%'
-  AND (finished_at IS NULL OR CAST(finished_at AS VARCHAR) = '')
+FROM "nekt_silver"."pipefy_all_cards_305643176_colunas_expandidas"
+WHERE current_phase_name NOT LIKE '%Finalizada%'
+  AND current_phase_name NOT LIKE '%Cancelada%'
 """
 
 # --- DP: Admissoes (status) ---

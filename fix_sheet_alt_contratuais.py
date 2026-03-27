@@ -89,89 +89,25 @@ print(f"Dias uteis na planilha: {[d.strftime('%d/%m') for d in date_list]}")
 # --- Primeiro, ver a estrutura do pipe ---
 print("\nExplorando pipe 305643176...")
 
-TABLE = '"nekt_trusted"."migracao_de_contratos_all_cards_305643176"'
+TABLE = '"nekt_silver"."pipefy_all_cards_305643176_colunas_expandidas"'
 
-# Primeiro descobrir as colunas
-print(f"  Listando colunas de {TABLE}...")
-try:
-    cols = nekt_query(f"SELECT * FROM {TABLE} LIMIT 1")
-    if cols:
-        print(f"  Colunas: {list(cols[0].keys())}")
-    else:
-        print("  Tabela vazia")
-except Exception as e:
-    print(f"  Erro: {e}")
-    # Tentar tabela alternativa
-    TABLE = '"nekt_service"."pipefy_migracao_de_contratosall_cards_305643176"'
-    print(f"\n  Tentando {TABLE}...")
-    try:
-        cols = nekt_query(f"SELECT * FROM {TABLE} LIMIT 1")
-        if cols:
-            print(f"  Colunas: {list(cols[0].keys())}")
-    except Exception as e2:
-        print(f"  Tambem falhou: {e2}")
-        sys.exit(1)
-
-# Detectar nome da coluna de fase
-sample = cols[0] if cols else {}
-phase_col = None
-for k in sample.keys():
-    if "phase" in k.lower() or "fase" in k.lower() or "status" in k.lower():
-        phase_col = k
-        break
-
-if not phase_col:
-    print(f"  AVISO: coluna de fase nao encontrada. Colunas: {list(sample.keys())}")
-    # Tentar current_phase_name (padrao pipefy silver)
-    phase_col = "current_phase_name"
-    print(f"  Tentando '{phase_col}'...")
-
-print(f"  Coluna de fase: {phase_col}")
-
-# Agora buscar fases
-rows = nekt_query(f'SELECT "{phase_col}", COUNT(*) AS total FROM {TABLE} GROUP BY "{phase_col}" ORDER BY total DESC')
-print("\n  Fases encontradas:")
+# Buscar fases
+print(f"  Tabela: {TABLE}")
+rows = nekt_query(f"SELECT current_phase_name, COUNT(*) AS total FROM {TABLE} GROUP BY current_phase_name ORDER BY total DESC")
+print("  Fases:")
 for r in rows:
-    print(f"    {r[phase_col]}: {r['total']}")
+    print(f"    {r['current_phase_name']}: {r['total']}")
 
-# Identificar fases finais
-FASES_FINAIS = []
-for r in rows:
-    fase = r[phase_col]
-    if fase:
-        fl = fase.lower()
-        if "conclu" in fl or "cancel" in fl or "finaliz" in fl:
-            FASES_FINAIS.append(fase)
-
-print(f"\nFases finais detectadas: {FASES_FINAIS}")
-
-# --- Buscar todos os cards com createdat e finishedat ---
+# --- Buscar todos os cards ---
 print("\nBuscando cards...")
-
-# Detectar coluna de data de criacao e conclusao
-create_col = None
-finish_col = None
-for k in sample.keys():
-    kl = k.lower()
-    if "createdat" in kl or "created_at" in kl or "data_criacao" in kl:
-        create_col = k
-    if "finishedat" in kl or "finished_at" in kl or "data_conclusao" in kl:
-        finish_col = k
-
-if not create_col:
-    create_col = "createdat"
-if not finish_col:
-    finish_col = "finishedat"
-
-print(f"  Colunas: criacao={create_col}, conclusao={finish_col}, fase={phase_col}")
 
 cards = nekt_query(f"""
     SELECT
-        DATE("{create_col}") AS data_criacao,
-        DATE("{finish_col}") AS data_conclusao,
-        "{phase_col}" AS fase
+        DATE(created_at) AS data_criacao,
+        DATE(finished_at) AS data_conclusao,
+        current_phase_name AS fase
     FROM {TABLE}
-    ORDER BY "{create_col}"
+    ORDER BY created_at
 """)
 print(f"  {len(cards)} cards encontrados")
 
