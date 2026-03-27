@@ -1,0 +1,24 @@
+name: Backfill Single Day
+on:
+  workflow_dispatch:
+    inputs:
+      target_date:
+        description: 'Data a preencher (YYYY-MM-DD)'
+        required: true
+        type: string
+
+jobs:
+  backfill:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests gspread google-auth
+      - name: Run backfill
+        env:
+          NEKT_API_KEY: ${{ secrets.NEKT_API_KEY }}
+          GSHEETS_CREDS_JSON: ${{ secrets.GSHEETS_CREDS_JSON }}
+          TARGET_DATE: ${{ inputs.target_date }}
+        run: python backfill_day.py
