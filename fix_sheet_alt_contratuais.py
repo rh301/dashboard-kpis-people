@@ -103,8 +103,12 @@ print("\nBuscando cards...")
 
 cards = nekt_query(f"""
     SELECT
-        DATE(created_at) AS data_criacao,
-        DATE(finished_at) AS data_conclusao,
+        DATE(CAST(created_at AS TIMESTAMP)) AS data_criacao,
+        CASE
+            WHEN finished_at IS NOT NULL AND CAST(finished_at AS VARCHAR) != ''
+            THEN DATE(CAST(finished_at AS TIMESTAMP))
+            ELSE NULL
+        END AS data_conclusao,
         current_phase_name AS fase
     FROM {TABLE}
     ORDER BY created_at
