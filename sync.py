@@ -183,6 +183,33 @@ GROUP BY 1, 2
 ORDER BY 1, 2
 """
 
+# --- R&S: Posicoes finalizadas por dia e recrutador ---
+SQL_POS_FINALIZADAS = """
+SELECT
+  DATE(p.hiredat) AS data,
+  CASE
+    WHEN j.recruiterid = '8e68aa32-1214-4c69-870b-626d1515bfe1' THEN 'Clara'
+    WHEN j.recruiterid = '9fe49d18-58ce-4225-aa46-0536ca9bfca8' THEN 'Jonas'
+    WHEN j.recruiterid = '47baa32f-5986-418f-b42f-d55c168f4a4c' THEN 'Julia'
+    WHEN j.recruiterid = '8722b94a-7758-421a-bc2a-3c932fe6e715' THEN 'Mario'
+    ELSE 'Outro'
+  END AS recrutador,
+  COUNT(*) AS total
+FROM "nekt_trusted"."inhire_positions" p
+JOIN "nekt_trusted"."inhire_jobs" j ON p.jobid = j.id
+WHERE p.hiredat IS NOT NULL
+  AND p.hiredat >= TIMESTAMP '2026-01-29'
+GROUP BY DATE(p.hiredat),
+  CASE
+    WHEN j.recruiterid = '8e68aa32-1214-4c69-870b-626d1515bfe1' THEN 'Clara'
+    WHEN j.recruiterid = '9fe49d18-58ce-4225-aa46-0536ca9bfca8' THEN 'Jonas'
+    WHEN j.recruiterid = '47baa32f-5986-418f-b42f-d55c168f4a4c' THEN 'Julia'
+    WHEN j.recruiterid = '8722b94a-7758-421a-bc2a-3c932fe6e715' THEN 'Mario'
+    ELSE 'Outro'
+  END
+ORDER BY data, recrutador
+"""
+
 # --- Cultura: Desligamentos por dia (Pipefy pipe 305642527) ---
 SQL_DESLIGAMENTOS = """
 SELECT
@@ -400,6 +427,7 @@ def coletar_dados() -> dict:
     queries = {
         "entrevistas": SQL_ENTREVISTAS,
         "contratacoes_mes": SQL_CONTRATACOES_MES,
+        "pos_finalizadas": SQL_POS_FINALIZADAS,
         "desligamentos": SQL_DESLIGAMENTOS,
         "canceladas": SQL_CANCELADAS,
         "departamentos": SQL_DEPARTAMENTOS,
@@ -595,6 +623,11 @@ def transformar(dados: dict) -> dict:
     """Transforma dados brutos no formato que o dashboard espera."""
     hoje = data_referencia_brt().isoformat()
 
+    # --- Posicoes finalizadas: tuples [date, recruiter, count] ---
+    pos_fin_raw = []
+    for r in dados.get("pos_finalizadas", []):
+        pos_fin_raw.append([r["data"][:10], r["recrutador"], int(r["total"])])
+
     # --- Entrevistas: tuples [date, recruiter, count] ---
     entrevistas_raw = []
     for r in dados["entrevistas"]:
@@ -748,6 +781,7 @@ def transformar(dados: dict) -> dict:
     pct_aceitos = float(pct.get("pct_aceitos", 0))
 
     return {
+        "pos_fin_raw": pos_fin_raw,
         "entrevistas_raw": entrevistas_raw,
         "cont_meses": cont_meses,
         "cont_clara": cont_clara,
@@ -942,6 +976,7 @@ def update_google_sheets(transformado: dict):
     # Fim de semana: gravar apenas data e "-" nas linhas de dados
     if is_weekend:
         DATA_ROWS = [5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+                     18, 19, 20, 21,
                      22, 23, 24, 25, 26, 34, 35, 36, 37, 38, 43, 44, 45, 46,
                      47, 48, 49, 50, 51, 52]
         values_map = {1: hoje_str}
@@ -955,6 +990,12 @@ def update_google_sheets(transformado: dict):
 
         def sum_date_rec(raw, dt, rec):
             return sum(r[2] for r in raw if r[0] == dt and r[1] == rec)
+
+        # Posicoes finalizadas
+        pf_total = sum_date(transformado["pos_fin_raw"], hoje_iso)
+        pf_clara = sum_date_rec(transformado["pos_fin_raw"], hoje_iso, "Clara")
+        pf_jonas = sum_date_rec(transformado["pos_fin_raw"], hoje_iso, "Jonas")
+        pf_julia = sum_date_rec(transformado["pos_fin_raw"], hoje_iso, "Julia")
 
         ent_total = sum_date(transformado["entrevistas_raw"], hoje_iso)
         ent_clara = sum_date_rec(transformado["entrevistas_raw"], hoje_iso, "Clara")
@@ -989,6 +1030,10 @@ def update_google_sheets(transformado: dict):
             15: resumo["julia"]["acimaSla"],            # Acima SLA Julia
             16: resumo["vagasSZS"],                     # Vagas SZS
             17: resumo["vagasSZI"],                     # Vagas SZI
+            18: pf_total,                               # Pos Finalizadas Total
+            19: pf_clara,                               # Pos Finalizadas Clara
+            20: pf_jonas,                               # Pos Finalizadas Jonas
+            21: pf_julia,                               # Pos Finalizadas Julia
             22: ent_total,                              # Entrevistas Total
             23: ent_clara,                              # Entrevistas Clara
             24: ent_jonas,                              # Entrevistas Jonas
@@ -1058,6 +1103,7 @@ if __name__ == "__main__":
     queries = {
         "entrevistas": SQL_ENTREVISTAS,
         "contratacoes_mes": SQL_CONTRATACOES_MES,
+        "pos_finalizadas": SQL_POS_FINALIZADAS,
         "desligamentos": SQL_DESLIGAMENTOS,
         "canceladas": SQL_CANCELADAS,
         "departamentos": SQL_DEPARTAMENTOS,
