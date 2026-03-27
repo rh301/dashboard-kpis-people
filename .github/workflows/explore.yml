@@ -1,0 +1,23 @@
+name: Explore Query
+on:
+  workflow_dispatch:
+    inputs:
+      script:
+        description: 'Script to run'
+        required: true
+        default: 'explore_admissoes.py'
+        type: string
+
+jobs:
+  explore:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install requests
+      - name: Run explore
+        env:
+          NEKT_API_KEY: ${{ secrets.NEKT_API_KEY }}
+        run: python ${{ inputs.script }}
