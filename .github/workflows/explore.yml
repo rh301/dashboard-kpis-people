@@ -16,8 +16,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install requests
+      - run: pip install requests gspread google-auth
       - name: Run explore
         env:
           NEKT_API_KEY: ${{ secrets.NEKT_API_KEY }}
+          GSHEETS_CREDS_JSON: ${{ secrets.GSHEETS_CREDS_JSON }}
         run: python ${{ inputs.script }}
