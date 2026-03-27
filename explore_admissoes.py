@@ -68,19 +68,71 @@ try:
 except Exception as e:
     print(f"  Erro: {e}")
 
-# 4. Checar se tem coluna de recrutador ou quem criou
-print("\n=== COLUNAS COM RECRUT/CRIADO/RESPONSAVEL ===")
+# 4. Responsavel pela admissao - valores
+print("\n=== RESPONSAVEL PELA ADMISSAO ===")
 try:
     rows = nekt_query("""
-        SELECT column_name FROM information_schema.columns
-        WHERE table_name = 'pipefy_all_cards_303470834_colunas_expandidas'
-          AND table_schema = 'nekt_service'
-          AND (column_name LIKE '%recru%' OR column_name LIKE '%creat%'
-               OR column_name LIKE '%assign%' OR column_name LIKE '%responsav%'
-               OR column_name LIKE '%name%')
-        ORDER BY column_name
+        SELECT responsavel_pela_admissao, COUNT(*) AS total
+        FROM "nekt_service"."pipefy_all_cards_303470834_colunas_expandidas"
+        WHERE responsavel_pela_admissao IS NOT NULL
+          AND responsavel_pela_admissao != ''
+        GROUP BY responsavel_pela_admissao
+        ORDER BY total DESC
+        LIMIT 20
     """)
     for r in rows:
-        print(f"  {r['column_name']}")
+        print(f"  {r['responsavel_pela_admissao']}: {r['total']}")
+except Exception as e:
+    print(f"  Erro: {e}")
+
+# 5. Cards criados em marco 2026 por dia e responsavel
+print("\n=== ADMISSOES MARCO 2026 POR DIA E RESPONSAVEL ===")
+try:
+    rows = nekt_query("""
+        SELECT
+          DATE(createdat) AS data,
+          responsavel_pela_admissao AS responsavel,
+          COUNT(*) AS total
+        FROM "nekt_service"."pipefy_all_cards_303470834_colunas_expandidas"
+        WHERE createdat >= TIMESTAMP '2026-03-01'
+          AND title != 'Teste'
+        GROUP BY DATE(createdat), responsavel_pela_admissao
+        ORDER BY data, responsavel
+    """)
+    for r in rows:
+        print(f"  {r['data']} | {r.get('responsavel','?')[:30]} | {r['total']}")
+except Exception as e:
+    print(f"  Erro: {e}")
+
+# 6. Tambem testar via inhire_positions.hiredat (metodo antigo)
+print("\n=== POSICOES FINALIZADAS (INHIRE) MARCO 2026 ===")
+try:
+    rows = nekt_query("""
+        SELECT
+          DATE(p.hiredat) AS data,
+          CASE
+            WHEN j.recruiterid = '8e68aa32-1214-4c69-870b-626d1515bfe1' THEN 'Clara'
+            WHEN j.recruiterid = '9fe49d18-58ce-4225-aa46-0536ca9bfca8' THEN 'Jonas'
+            WHEN j.recruiterid = '47baa32f-5986-418f-b42f-d55c168f4a4c' THEN 'Julia'
+            WHEN j.recruiterid = '8722b94a-7758-421a-bc2a-3c932fe6e715' THEN 'Mario'
+            ELSE 'Outro'
+          END AS recrutador,
+          COUNT(*) AS total
+        FROM "nekt_trusted"."inhire_positions" p
+        JOIN "nekt_trusted"."inhire_jobs" j ON p.jobid = j.id
+        WHERE p.hiredat IS NOT NULL
+          AND p.hiredat >= TIMESTAMP '2026-03-01'
+        GROUP BY DATE(p.hiredat),
+          CASE
+            WHEN j.recruiterid = '8e68aa32-1214-4c69-870b-626d1515bfe1' THEN 'Clara'
+            WHEN j.recruiterid = '9fe49d18-58ce-4225-aa46-0536ca9bfca8' THEN 'Jonas'
+            WHEN j.recruiterid = '47baa32f-5986-418f-b42f-d55c168f4a4c' THEN 'Julia'
+            WHEN j.recruiterid = '8722b94a-7758-421a-bc2a-3c932fe6e715' THEN 'Mario'
+            ELSE 'Outro'
+          END
+        ORDER BY data, recrutador
+    """)
+    for r in rows:
+        print(f"  {r['data']} | {r['recrutador']} | {r['total']}")
 except Exception as e:
     print(f"  Erro: {e}")
