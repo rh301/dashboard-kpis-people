@@ -124,8 +124,7 @@ def nekt_query(sql: str) -> list[dict]:
     body = resp.json()
 
     if body.get("state") != "SUCCEEDED":
-        print(f"[ERRO] Query falhou: {body}", file=sys.stderr)
-        sys.exit(1)
+        raise RuntimeError(f"Query falhou: {body.get('state_change_reason', body)}")
 
     urls = body.get("presigned_urls", [])
     if not urls:
@@ -278,7 +277,7 @@ ORDER BY 1
 SQL_ALT_CONTRATUAIS = """
 SELECT COUNT(*) AS em_aberto
 FROM "nekt_trusted"."migracao_de_contratos_all_cards_305643176"
-WHERE current_phase NOT LIKE '%cancelad%'
+WHERE current_phase.name NOT LIKE '%cancelad%'
   AND (finished_at IS NULL OR CAST(finished_at AS VARCHAR) = '')
 """
 
