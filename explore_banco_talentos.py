@@ -26,14 +26,13 @@ def nekt_query(sql):
 # 1. Buscar vagas com "banco" ou "talento" no nome
 print("=== VAGAS COM 'banco' ou 'talento' ===")
 rows = nekt_query("""
-    SELECT id, name, CAST(istalentpool AS VARCHAR) AS is_pool,
-           CAST(isactive AS VARCHAR) AS is_active, status
+    SELECT id, name, CAST(istalentpool AS VARCHAR) AS is_pool, status
     FROM "nekt_trusted"."inhire_job_details"
     WHERE LOWER(name) LIKE '%banco%' OR LOWER(name) LIKE '%talento%'
     ORDER BY name
 """)
 for r in rows:
-    print(f"  {r['name']} | id={r['id'][:12]}... | pool={r['is_pool']} | active={r['is_active']} | status={r['status']}")
+    print(f"  {r['name']} | id={r['id'][:12]}... | pool={r['is_pool']} | status={r['status']}")
 
 # 2. Contar talentos na ABA (istalentpool=true)
 print("\n=== CONTAGEM ABA (istalentpool=true) ===")
