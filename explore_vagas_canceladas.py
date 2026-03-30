@@ -34,23 +34,21 @@ rows = nekt_query("""
 for r in rows:
     print(f"  {r['status']}: {r['total']}")
 
-# 2. Vagas canceladas recentes
+# 2. Vagas canceladas recentes (sem join)
 print("\n=== VAGAS CANCELADAS (ultimas 30) ===")
 rows = nekt_query("""
     SELECT name, status,
            CAST(createdat AS VARCHAR) AS criada,
-           CAST(updatedat AS VARCHAR) AS atualizada,
-           u.name AS recrutador
-    FROM "nekt_trusted"."inhire_job_details" j
-    LEFT JOIN "nekt_trusted"."inhire_users" u ON j.userid = u.id
-    WHERE j.status = 'canceled'
-    ORDER BY j.updatedat DESC
+           CAST(updatedat AS VARCHAR) AS atualizada
+    FROM "nekt_trusted"."inhire_job_details"
+    WHERE status = 'canceled'
+    ORDER BY updatedat DESC
     LIMIT 30
 """)
 for r in rows:
-    print(f"  {r['atualizada'][:10]} | {r['recrutador'] or '?'} | {r['name'][:50]}")
+    print(f"  {r['atualizada'][:10]} | {r['name'][:60]}")
 
-# 3. Vagas canceladas por mes (2026)
+# 3. Canceladas por mes (2026)
 print("\n=== CANCELADAS POR MES (2026) ===")
 rows = nekt_query("""
     SELECT DATE_FORMAT(CAST(updatedat AS TIMESTAMP), '%Y-%m') AS mes,
@@ -84,7 +82,7 @@ rows = nekt_query('SELECT * FROM "nekt_trusted"."inhire_job_details" LIMIT 1')
 if rows:
     print(f"  {list(rows[0].keys())}")
 
-# 6. Tem campo canceldat ou closedat?
+# 6. Campos de data de vaga cancelada
 print("\n=== CAMPOS DE DATA (amostra vaga cancelada) ===")
 rows = nekt_query("""
     SELECT name, status,
@@ -98,4 +96,37 @@ rows = nekt_query("""
     LIMIT 5
 """)
 for r in rows:
-    print(f"  {r['name'][:40]} | created={r['createdat'][:10]} | updated={r['updatedat'][:10]} | closed={r['closedat'][:10] if r['closedat'] else 'null'} | hired={r['hiredat'][:10] if r['hiredat'] else 'null'}")
+    cd = r['closedat'][:10] if r.get('closedat') and r['closedat'] else 'null'
+    hd = r['hiredat'][:10] if r.get('hiredat') and r['hiredat'] else 'null'
+    print(f"  {r['name'][:40]} | created={r['createdat'][:10]} | updated={r['updatedat'][:10]} | closed={cd} | hired={hd}")
+
+# 7. Posicoes (inhire_positions) canceladas?
+print("\n=== STATUS EM inhire_positions ===")
+try:
+    rows = nekt_query("""
+        SELECT status, COUNT(*) AS total
+        FROM "nekt_trusted"."inhire_positions"
+        GROUP BY status
+        ORDER BY total DESC
+    """)
+    for r in rows:
+        print(f"  {r['status']}: {r['total']}")
+except Exception as e:
+    print(f"  Erro: {e}")
+
+# 8. Posicoes canceladas por dia (marco 2026)
+print("\n=== POSICOES CANCELADAS POR DIA (marco 2026) ===")
+try:
+    rows = nekt_query("""
+        SELECT DATE(CAST(updatedat AS TIMESTAMP)) AS dia,
+               COUNT(*) AS total
+        FROM "nekt_trusted"."inhire_positions"
+        WHERE status = 'canceled'
+          AND CAST(updatedat AS TIMESTAMP) >= TIMESTAMP '2026-03-01'
+        GROUP BY DATE(CAST(updatedat AS TIMESTAMP))
+        ORDER BY dia
+    """)
+    for r in rows:
+        print(f"  {r['dia']}: {r['total']}")
+except Exception as e:
+    print(f"  Erro: {e}")
