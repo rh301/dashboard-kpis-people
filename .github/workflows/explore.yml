@@ -7,6 +7,11 @@ on:
         required: true
         default: 'explore_admissoes.py'
         type: string
+      args:
+        description: 'Extra args (e.g. --apply)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   explore:
@@ -21,4 +26,4 @@ jobs:
         env:
           NEKT_API_KEY: ${{ secrets.NEKT_API_KEY }}
           GSHEETS_CREDS_JSON: ${{ secrets.GSHEETS_CREDS_JSON }}
-        run: python ${{ inputs.script }}
+        run: python ${{ inputs.script }} ${{ inputs.args }}
