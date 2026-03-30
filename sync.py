@@ -394,12 +394,12 @@ GROUP BY j.name, u.name, j.sla, j.sladaysgoal, j.tenantclient.name, mgr.name
 ORDER BY u.name, j.name
 """
 
-# --- Banco de talentos ---
+# --- Banco de talentos (vaga especifica, nao a aba) ---
 SQL_BANCO_TALENTOS = """
 SELECT COUNT(DISTINCT t.talentid) AS total_banco_talentos
 FROM "nekt_trusted"."inhire_job_talents" t
 JOIN "nekt_trusted"."inhire_job_details" j ON SUBSTR(t.id, 1, 36) = j.id
-WHERE CAST(j.istalentpool AS VARCHAR) = 'true'
+WHERE TRIM(j.name) = 'Banco de Talentos'
 """
 
 # --- % Aceitos entrevista final ---
