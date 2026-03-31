@@ -239,6 +239,17 @@ GROUP BY DATE_FORMAT(DATE(j.updatedat), '%Y-%m')
 ORDER BY mes
 """
 
+# --- R&S: Vagas canceladas por dia ---
+SQL_CANCELADAS_DIA = """
+SELECT DATE(CAST(updatedat AS TIMESTAMP)) AS dia,
+       COUNT(DISTINCT id) AS canceladas
+FROM "nekt_trusted"."inhire_job_details"
+WHERE status = 'canceled'
+  AND CAST(updatedat AS TIMESTAMP) >= TIMESTAMP '2025-01-01'
+GROUP BY DATE(CAST(updatedat AS TIMESTAMP))
+ORDER BY dia
+"""
+
 # --- Headcount: departamentos top 15 ---
 SQL_DEPARTAMENTOS = """
 SELECT
@@ -430,6 +441,7 @@ def coletar_dados() -> dict:
         "pos_finalizadas": SQL_POS_FINALIZADAS,
         "desligamentos": SQL_DESLIGAMENTOS,
         "canceladas": SQL_CANCELADAS,
+        "canceladas_dia": SQL_CANCELADAS_DIA,
         "departamentos": SQL_DEPARTAMENTOS,
         "hc_empresa": SQL_HC_EMPRESA,
         "headcount": SQL_HEADCOUNT,
@@ -669,6 +681,11 @@ def transformar(dados: dict) -> dict:
         canc_meses.append(mes_label(r["mes"] + "-01"))
         canc_vals.append(int(r["vagas_canceladas"]))
 
+    # --- Canceladas por dia (para KPI diario) ---
+    canc_dia_raw = []
+    for r in dados.get("canceladas_dia", []):
+        canc_dia_raw.append([r["dia"][:10], int(r["canceladas"])])
+
     # --- Departamentos ---
     depts = [r["departamento"] for r in dados["departamentos"]]
     dept_vals = [int(r["headcount"]) for r in dados["departamentos"]]
@@ -790,6 +807,7 @@ def transformar(dados: dict) -> dict:
         "deslig_raw": deslig_raw,
         "canc_meses": canc_meses,
         "canc_vals": canc_vals,
+        "canc_dia_raw": canc_dia_raw,
         "depts": depts,
         "dept_vals": dept_vals,
         "sup_novos_raw": sup_novos_raw,
@@ -975,7 +993,7 @@ def update_google_sheets(transformado: dict):
 
     # Fim de semana: gravar apenas data e "-" nas linhas de dados
     if is_weekend:
-        DATA_ROWS = [5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
+        DATA_ROWS = [4, 5, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17,
                      18, 19, 20, 21,
                      22, 23, 24, 25, 26, 34, 35, 36, 37, 38, 43, 44, 45, 46,
                      47, 48, 49, 50, 51, 52]
@@ -1010,6 +1028,7 @@ def update_google_sheets(transformado: dict):
         sup_novos = sum_date(transformado["sup_novos_raw"], hoje_iso)
         sup_fin = sum_date(transformado["sup_fin_raw"], hoje_iso)
         medalhas_dia = sum_date(transformado["medalhas_raw"], hoje_iso)
+        canc_dia = sum_date(transformado["canc_dia_raw"], hoje_iso)
 
         def fmt_nota(v):
             """Formata nota para a planilha (virgula decimal) ou 0 se None."""
@@ -1019,6 +1038,7 @@ def update_google_sheets(transformado: dict):
 
         values_map = {
             1: hoje_str,                                # Data
+            4: canc_dia,                                # Vagas Canceladas
             5: resumo["bancotalentos"],                 # Banco de Talentos
             8: resumo["posAbertas"],                    # Posicoes Abertas Total
             9: resumo["clara"]["posAbertas"],           # Posicoes Abertas Clara
@@ -1106,6 +1126,7 @@ if __name__ == "__main__":
         "pos_finalizadas": SQL_POS_FINALIZADAS,
         "desligamentos": SQL_DESLIGAMENTOS,
         "canceladas": SQL_CANCELADAS,
+        "canceladas_dia": SQL_CANCELADAS_DIA,
         "departamentos": SQL_DEPARTAMENTOS,
         "hc_empresa": SQL_HC_EMPRESA,
         "headcount": SQL_HEADCOUNT,
