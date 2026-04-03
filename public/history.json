@@ -254,5 +254,22 @@
     "adm_canceladas": 38,
     "erros": 0,
     "erros_detalhe": []
+  },
+  {
+    "data_hora": "03/04/2026 03:03",
+    "status": "success",
+    "posicoes_abertas": 4,
+    "acima_sla": 0,
+    "sla_medio": 3.17,
+    "headcount": 341,
+    "hc_ativos": 323,
+    "hc_ferias": 17,
+    "banco_talentos": 31,
+    "pct_aceitos": 25.0,
+    "adm_aberto": 5,
+    "adm_concluidas": 571,
+    "adm_canceladas": 38,
+    "erros": 0,
+    "erros_detalhe": []
   }
 ]
